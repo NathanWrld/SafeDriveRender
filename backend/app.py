@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 
-import mediapipe as mp
+from mediapipe.python.solutions import face_mesh
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 # =====================================================
@@ -60,7 +60,7 @@ transform = transforms.Compose([
 # =====================================================
 # 3. MediaPipe Face Mesh
 # =====================================================
-mp_face = mp.solutions.face_mesh.FaceMesh(
+mp_face = face_mesh.FaceMesh(
     static_image_mode=False,
     max_num_faces=1,
     refine_landmarks=True,
