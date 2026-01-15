@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard – Sistema de Detección de Astenia</title>
+<link rel="stylesheet" href="style.css" />
+  <!-- MediaPipe FaceMesh -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+<!-- HEADER -->
+<header class="top-header">
+    <div class="header-left">
+        <img src="logo.png" alt="Logo" class="logo">
+        <div class="burger" id="burgerBtn">☰</div>
+    </div>
+</header>
+
+<div class="content">
+    <!-- OVERLAY -->
+    <div id="overlay" class="overlay"></div>
+
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <h2>Panel Principal</h2>
+        <a class="menu-btn active" data-target="inicio">Inicio</a>
+        <a class="menu-btn" data-target="deteccion">Detección en Tiempo Real</a>
+        <a class="menu-btn" data-target="usuarios">Gestión de Usuario</a>
+        <a class="menu-btn" data-target="historial">Historial</a>
+        <a href="#" id="logoutBtn">Cerrar Sesión</a>
+    </div>
+
+    <!-- Botón Cerrar (X) fuera del slide) -->
+    <div id="closeSidebar" class="close-sidebar">✕</div>
+
+    <!-- Main content -->
+    <div class="main normal-container">
+        <!-- Inicio -->
+        <section id="inicio" class="card">
+            <h2>Resumen Últimos 30 Días</h2>
+            <div class="chart-container">
+                <div class="chart-scroll-wrapper">
+                    <canvas id="fatigueChart"></canvas> 
+                </div>
+            </div>
+            <p>Datos sobre estados de fatiga o somnolencia del conductor en los últimos 30 días.</p>
+            <p>El sistema ha identificado indicadores recurrentes de fatiga o somnolencia en los últimos días.
+<b>Se recomienda acudir a un profesional de la salud</b> para descartar astenia u otras condiciones médicas.</p>
+        </section>
+
+
+        <!-- Detección en tiempo real -->
+        <section id="deteccion" class="card" style="display:none;">
+            <h2>Detección en Tiempo Real</h2>
+            <div class="cam-container" id="camFeed">
+                <video id="camaraNormal" class="input_video" autoplay playsinline style="display:none;"></video>
+
+                <canvas id="camaraAvanzada" class="output_canvas"></canvas>
+            </div>
+            <div class="btn-detection-container">
+                <div id="estado">
+                    <p>Presiona "Iniciar Detección" para comenzar.</p>
+                </div>
+                <button id="startDetection" class="primary-button">Iniciar Detección</button>
+                <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
+            </div>
+            
+        </section>
+
+
+    <!-- Gestión de usuarios / Editar Perfil -->
+        <section id="usuarios" class="card" style="display:none;">
+            <h2 style="margin-bottom:20px; text-align:center;">Mi Perfil</h2>
+
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="userName">Nombre:</label>
+                    <input type="text" id="userName" name="userName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="userEmail">Email:</label>
+                    <input type="email" id="userEmail" name="userEmail" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label for="newPassword">Nueva Contraseña:</label>
+                    <input type="password" id="newPassword" name="newPassword" autocomplete="new-password">
+                </div>
+
+                <div class="form-group">
+                    <label for="repeatPassword">Repetir Contraseña:</label>
+                    <input type="password" id="repeatPassword" name="repeatPassword">
+                </div>
+
+                <div class="form-group">
+                    <label for="currentPassword">Contraseña Actual:</label>
+                    <input
+                    type="password"
+                    id="currentPassword"
+                    name="currentPassword"
+                    required
+                    autocomplete="current-password"
+                    >
+                </div>
+
+                <div id="profileMessage"></div>
+
+                <button type="submit" class="primary-button">Guardar Cambios</button>
+            </form>
+        </section>
+
+
+       <!-- Historial -->
+        <section id="historial" class="card" style="display:none;">
+
+            <h2>Historial de Alertas</h2>
+
+            <!-- Filtros -->
+            <div class="history-filters">
+                
+                <div class="filter-wrapper">
+                    <div class="filter-item">
+                        <label for="filterDate">Fecha:</label>
+                        <input type="date" id="filterDate">
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filterType">Tipo de alerta:</label>
+                        <select id="filterType">
+                            <option value="">Todas</option>
+                            <option value="Fatiga">Fatiga</option>
+                            <option value="Somnolencia">Somnolencia</option>
+                            <option value="Microsueño">Microsueño</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filterLevel">Nivel:</label>
+                        <select id="filterLevel">
+                            <option value="">Todos</option>
+                            <option value="Normal">Normal</option>
+                            <option value="Leve">Leve</option>
+                            <option value="Moderado">Moderado</option>
+                            <option value="Alto">Alto riesgo</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filterAction">Acción del sistema:</label>
+                        <select id="filterAction">
+                            <option value="">Todas</option>
+                            <option value="Preventiva">Preventiva</option>
+                            <option value="Sonora">Sonora</option>
+                        </select>
+                    </div>
+                    <button id="applyFilters" class="primary-button">Filtrar</button>
+                </div>
+            </div>
+
+            <!-- Tabla historial -->
+            <div class="table-container">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Alerta</th>
+                            <th>Nivel</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="historyTable">
+                        <!-- Ejemplo inicial -->
+                        <tr>
+                            <td>2025-12-01 08:00</td>
+                            <td>Somnolencia</td>
+                            <td>Moderado</td>
+                            <td>Preventiva</td>
+                        </tr>
+
+                        <tr>
+                            <td>2025-12-01 08:20</td>
+                            <td>Microsueño</td>
+                            <td>Alto riesgo</td>
+                            <td>Sonora</td>
+                        </tr>
+
+                        <tr>
+                            <td>2025-12-01 09:10</td>
+                            <td>Fatiga</td>
+                            <td>Leve</td>
+                            <td>Preventiva</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            <div class="pagination">
+                <button class="page-btn" id="prevPage">
+                     <?xml version="1.0" encoding="utf-8"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+<svg width="800px" height="800px" viewBox="0 0 1024 1024" class="icon"  version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M364.8 106.666667L298.666667 172.8 637.866667 512 298.666667 851.2l66.133333 66.133333L768 512z" fill="currentColor" /></svg>
+                </button>
+                <span id="pageInfo">Página 1 de 1</span>
+                <button class="page-btn" id="nextPage">
+                   <?xml version="1.0" encoding="utf-8"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+<svg width="800px" height="800px" viewBox="0 0 1024 1024" class="icon"  version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M364.8 106.666667L298.666667 172.8 637.866667 512 298.666667 851.2l66.133333 66.133333L768 512z" fill="currentColor" /></svg>
+                </button>
+            </div>
+
+        </section>
+
+    </div>
+</div>
+
+<script>
+    // Navegación entre módulos
+    const menuBtns = document.querySelectorAll('.menu-btn');
+    const sections = ['inicio','deteccion','usuarios','historial'];
+
+    menuBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Activar botón
+            menuBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Mostrar sección correspondiente
+            sections.forEach(sec => {
+                document.getElementById(sec).style.display = (sec === btn.dataset.target) ? 'block' : 'none';
+            });
+        });
+    });
+</script>
+<script>
+    const riskLevels = ["Normal", "Leve", "Moderado", "Alto riesgo"];
+    const riskColors = ['#10b981','#facc15','#f97316','#ef4444'];
+
+    const fatigaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
+    const somnolenciaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
+
+    const ctx = document.getElementById('fatigueChart').getContext('2d');
+
+    const fatigueChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length:30}, (_,i)=>`Día ${i+1}`),
+            datasets: [
+                {
+                    label: 'Fatiga',
+                    data: fatigaData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.2)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointBackgroundColor: fatigaData.map(v => riskColors[riskLevels.indexOf(v)])
+                },
+                {
+                    label: 'Somnolencia',
+                    data: somnolenciaData,
+                    borderColor: '#facc15',
+                    backgroundColor: 'rgba(250,204,21,0.2)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointBackgroundColor: somnolenciaData.map(v => riskColors[riskLevels.indexOf(v)])
+                }
+            ]
+        },
+        options: {
+            responsive:false,
+            layout: {
+                padding: { top: 30, bottom: 10 }
+            },
+            scales: {
+                y: {
+                    type: 'category',
+                    labels: riskLevels,
+                    reverse: true, // ahora Normal arriba, Alto riesgo abajo
+                    ticks: { color:'#fff' }
+                },
+                x: {
+                    ticks: { color:'#fff' }
+                }
+            },
+            plugins: {
+                legend: { labels: { color:'#fff' } }
+            }
+        }
+    });
+</script>
+
+<script type="module" src="script.js"></script>
+<script src="burger-btn.js"></script>
+
+</body>
+</html>

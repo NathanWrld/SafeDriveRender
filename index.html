@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso | Sistema de Detección de Astenia</title>
+
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+    }
+
+    .container {
+        width: 380px;
+        background: #1e293b;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 25px rgba(0,0,0,0.4);
+    }
+
+    h2 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #60a5fa;
+    }
+
+    .tabs {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 25px;
+    }
+
+    .tab {
+        width: 50%;
+        text-align: center;
+        padding: 10px;
+        cursor: pointer;
+        font-weight: bold;
+        border-bottom: 3px solid transparent;
+        color: #cbd5e1;
+    }
+
+    .tab.active {
+        border-color: #3b82f6;
+        color: #ffffff;
+    }
+
+    form {
+        display: none;
+        flex-direction: column;
+    }
+
+    form.active {
+        display: flex;
+    }
+
+    input {
+        margin-bottom: 15px;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #fff;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #3b82f6;
+    }
+
+    button {
+        padding: 12px;
+        background: #3b82f6;
+        border: none;
+        color: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    .error {
+        color: #f87171;
+        margin-bottom: 10px;
+        font-size: 14px;
+        text-align: center;
+    }
+    /* MODAL */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    width: 90%;
+    max-width: 320px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.5);
+    animation: scaleIn 0.3s ease;
+}
+
+.modal-content h3 {
+    color: #60a5fa;
+    margin-bottom: 10px;
+}
+
+.modal-content p {
+    color: #cbd5e1;
+    font-size: 15px;
+    margin-bottom: 20px;
+}
+
+.modal-content button {
+    width: 100%;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+</style>
+</head>
+<!-- POPUP REGISTRO EXITOSO -->
+<div id="successModal" class="modal">
+    <div class="modal-content">
+        <h3>✅ Registro exitoso</h3>
+        <p>Tu cuenta fue creada correctamente.<br>Ahora puedes iniciar sesión.</p>
+        <button id="closeModal">Aceptar</button>
+    </div>
+</div>
+
+
+<body>
+
+<div class="container">
+
+    <div class="tabs">
+        <div id="loginTab" class="tab active">Iniciar Sesión</div>
+        <div id="registerTab" class="tab">Registrarse</div>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="loginForm" class="active">
+        <h2>Iniciar Sesión</h2>
+        <div id="loginError" class="error"></div>
+        <input type="email" id="loginEmail" placeholder="Correo electrónico" required>
+        <input type="password" id="loginPassword" placeholder="Contraseña" required>
+        <button type="submit">Entrar</button>
+    </form>
+
+    <!-- REGISTRO -->
+    <form id="registerForm">
+        <h2>Crear Cuenta</h2>
+        <div id="registerError" class="error"></div>
+        <input type="text" id="regName" placeholder="Nombre completo" required>
+        <input type="email" id="regEmail" placeholder="Correo electrónico" required>
+        <input type="password" id="regPassword" placeholder="Contraseña" required>
+        <input type="password" id="regPassword2" placeholder="Confirmar contraseña" required>
+        <button type="submit">Registrarse</button>
+    </form>
+
+</div>
+
+<!-- Supabase JS -->
+<script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    const supabaseUrl = 'https://roogjmgxghbuiogpcswy.supabase.co'
+    const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // --- FUNCIONES AUXILIARES ---
+    function translateAuthError(message) {
+        if (message.includes('Password should be at least 6 characters')) return 'La contraseña debe tener al menos 6 caracteres';
+        if (message.includes('User already registered')) return 'Este correo ya está registrado';
+        if (message.includes('Invalid email')) return 'El correo electrónico no es válido';
+        if (message.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos';
+        if (message.includes('Email not confirmed')) return 'El correo electrónico no ha sido confirmado';
+        if (message.includes('User not found')) return 'Usuario no encontrado';
+        return 'Ocurrió un error. Inténtalo nuevamente';
+    }
+
+    // --- REDIRECCIÓN SI YA HAY SESIÓN ---
+    async function checkSession() {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+            console.error('Error obteniendo la sesión:', error.message);
+            return;
+        }
+
+        if (session?.user) {
+            // Si el usuario ya está logueado, lo llevamos a home.html
+            window.location.href = 'home.html';
+        }
+    }
+
+    checkSession(); // <-- se ejecuta al cargar la página
+
+    // --- TABS ---
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+
+    loginTab.onclick = () => {
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+        loginForm.classList.add('active');
+        registerForm.classList.remove('active');
+    };
+
+    registerTab.onclick = () => {
+        registerTab.classList.add('active');
+        loginTab.classList.remove('active');
+        registerForm.classList.add('active');
+        loginForm.classList.remove('active');
+    };
+
+    // --- LOGIN ---
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+        const errorEl = document.getElementById('loginError');
+        errorEl.textContent = '';
+
+        if(!email || !password) {
+            errorEl.textContent = 'Todos los campos son obligatorios';
+            return;
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+        if(error) {
+            errorEl.textContent = translateAuthError(error.message);
+        } else {
+            // Redirige al home.html después del login
+            window.location.href = 'home.html';
+        }
+    });
+
+    // --- REGISTRO ---
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('regName').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        const password2 = document.getElementById('regPassword2').value.trim();
+        const errorEl = document.getElementById('registerError');
+        errorEl.textContent = '';
+
+        if (password !== password2) {
+            errorEl.textContent = 'Las contraseñas no coinciden';
+            return;
+        }
+
+        try {
+            // 1️⃣ Registrar en Auth
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+            if (signUpError) throw signUpError;
+
+            const authUid = signUpData.user.id;
+
+            // 2️⃣ Insertar en tabla Usuarios
+            await supabase.from('Usuarios').insert([
+                { id_usuario: authUid, nombre: name }
+            ]);
+
+            // 3️⃣ Limpiar campos
+            document.getElementById('regName').value = '';
+            document.getElementById('regEmail').value = '';
+            document.getElementById('regPassword').value = '';
+            document.getElementById('regPassword2').value = '';
+
+            // 4️⃣ Mostrar popup de éxito
+            const modal = document.getElementById('successModal');
+            const closeModal = document.getElementById('closeModal');
+            modal.classList.add('active');
+            closeModal.onclick = () => {
+                modal.classList.remove('active');
+                loginTab.click();
+            };
+
+        } catch (err) {
+            console.error(err);
+            errorEl.textContent = translateAuthError(err.message);
+        }
+    });
+
+
+</script>
+</body>
+</html>
