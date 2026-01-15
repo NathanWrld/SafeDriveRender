@@ -58,15 +58,26 @@ transform = transforms.Compose([
 ])
 
 # =====================================================
-# 3. MediaPipe Face Mesh
+# 3. MediaPipe Face Mesh (con fallback para Render)
 # =====================================================
-mp_face = mp.solutions.face_mesh.FaceMesh(
-    static_image_mode=False,
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
+mp_face = None
+
+try:
+    if hasattr(mp, "solutions"):
+        mp_face = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=False,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
+        print("MediaPipe FaceMesh inicializado correctamente")
+    else:
+        print("MediaPipe instalado sin soporte FaceMesh (Render / Py3.13)")
+except Exception as e:
+    print("Error inicializando MediaPipe:", e)
+    mp_face = None
+
 
 # =====================================================
 # 4. Aprendizaje incremental
@@ -120,7 +131,9 @@ async def websocket_endpoint(ws: WebSocket):
             frame = base64_to_image(data["frame"])
             feedback = data.get("feedback")
 
-            results = mp_face.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            results = None
+            if mp_face is not None:
+                results = mp_face.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
             response = {"left": None, "right": None, "mouth": None}
 
