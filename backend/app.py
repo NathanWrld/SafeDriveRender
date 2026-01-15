@@ -58,26 +58,9 @@ transform = transforms.Compose([
 ])
 
 # =====================================================
-# 3. MediaPipe Face Mesh (con fallback para Render)
+# 3. MediaPipe (sin FaceMesh, solo placeholder)
 # =====================================================
-mp_face = None
-
-try:
-    if hasattr(mp, "solutions"):
-        mp_face = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        print("MediaPipe FaceMesh inicializado correctamente")
-    else:
-        print("MediaPipe instalado sin soporte FaceMesh (Render / Py3.13)")
-except Exception as e:
-    print("Error inicializando MediaPipe:", e)
-    mp_face = None
-
+print("MediaPipe instalado sin soporte FaceMesh (Render / Py3.13)")
 
 # =====================================================
 # 4. Aprendizaje incremental
@@ -120,7 +103,14 @@ def predict(roi):
         return torch.argmax(model(img_t), dim=1).item()
 
 # =====================================================
-# 6. WebSocket FastAPI
+# 6. Endpoint HTTP de prueba
+# =====================================================
+@app.get("/")
+async def root():
+    return {"status": "Backend activo"}
+
+# =====================================================
+# 7. WebSocket FastAPI
 # =====================================================
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
@@ -131,30 +121,20 @@ async def websocket_endpoint(ws: WebSocket):
             frame = base64_to_image(data["frame"])
             feedback = data.get("feedback")
 
+            # Placeholder landmarks vacíos (MediaPipe FaceMesh no disponible)
             results = None
-            if mp_face is not None:
-                results = mp_face.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
             response = {"left": None, "right": None, "mouth": None}
 
-            if results.multi_face_landmarks:
-                lm = results.multi_face_landmarks[0].landmark
-                left = extract_roi(frame, lm, [33, 133])
-                right = extract_roi(frame, lm, [362, 263])
-                mouth = extract_roi(frame, lm, [78, 308])
+            # Aquí normalmente procesarías landmarks, pero en Render Py3.13 FaceMesh no funciona
+            # Así que solo devolvemos None (o mock) hasta que uses otra librería compatible
 
-                response["left"] = predict(left)
-                response["right"] = predict(right)
-                response["mouth"] = predict(mouth)
-
-                if feedback:
-                    if "left" in feedback:
-                        train_buffer.append((Image.fromarray(left), feedback["left"]))
-                    if "right" in feedback:
-                        train_buffer.append((Image.fromarray(right), feedback["right"]))
-                    if "mouth" in feedback:
-                        train_buffer.append((Image.fromarray(mouth), feedback["mouth"]))
-                    fine_tune_model()
+            if feedback:
+                # Mock de entrenamiento incremental con la propia imagen (sin ROI real)
+                for key in ["left", "right", "mouth"]:
+                    if key in feedback:
+                        train_buffer.append((Image.fromarray(frame), feedback[key]))
+                fine_tune_model()
 
             await ws.send_text(json.dumps(response))
 
