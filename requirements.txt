@@ -2,7 +2,8 @@ fastapi
 uvicorn
 torch
 torchvision
-mediapipe
+mediapipe==0.8.11
 opencv-python-headless
 numpy
 pillow
+
