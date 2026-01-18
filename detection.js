@@ -91,11 +91,27 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     }
 
     function calculateMAR_px(landmarks, indices) {
-        const [p0, p1, p2, p3, p4, p5] = indices.map(i => toPixel(landmarks[i]));
-        const vertical = dist(p2, p4);
-        const horizontal = dist(p0, p5);
+        // Mapeamos los puntos a píxeles
+        const p = indices.map(i => toPixel(landmarks[i]));
+        
+        // p[0]=61 (izq), p[1]=291 (der) -> ANCHO HORIZONTAL
+        const horizontal = dist(p[0], p[1]);
+        
+        // Distancias Verticales:
+        // p[2]=13, p[3]=14 (Centro)
+        const v1 = dist(p[2], p[3]);
+        // p[4]=81, p[5]=178 (Lateral A)
+        const v2 = dist(p[4], p[5]);
+        // p[6]=311, p[7]=402 (Lateral B)
+        const v3 = dist(p[6], p[7]);
+
+        // Promedio de las alturas verticales
+        const verticalAvg = (v1 + v2 + v3) / 3;
+
         if (horizontal === 0) return 0;
-        return vertical / horizontal;
+        
+        // Relación Aspecto
+        return verticalAvg / horizontal;
     }
 
     // ===============================
@@ -103,7 +119,15 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     // ===============================
     const RIGHT_EYE_IDX = [33, 160, 158, 133, 153, 144];
     const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
-    const MOUTH_IDX = [78, 308, 13, 14, 311, 402];
+    // ===============================
+    // ÍNDICES MEJORADOS (Boca Interior)
+    // ===============================
+    // Usamos:
+    // 61, 291: Comisuras (izquierda/derecha)
+    // 13, 14: Centro labios (arriba/abajo - interior)
+    // 81, 178: Vertical lateral 1
+    // 311, 402: Vertical lateral 2
+    const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402];
 
     // ===============================
     // MEDIAPIPE
@@ -218,22 +242,42 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         }
 
         // ===============================
-        // BOSTEZOS (FIX TIEMPO)
+        // BOSTEZOS (LÓGICA MEJORADA)
         // ===============================
+        
+        // Umbral híbrido:
+        // 1. Debe ser mayor al baseline dinámico (para adaptarse a la cara)
+        // 2. PERO TAMBIÉN debe superar un mínimo fijo de 0.5 (para evitar detectar hablar como bostezo)
+        const MIN_YAWN_MAR = 0.50; 
+        const CURRENT_THRESHOLD = Math.max(dynamicMARBaseline * 1.4, MIN_YAWN_MAR);
+
         let yawnDetected = false;
-        if (smoothedMAR > YAWN_THRESHOLD) {
+        
+        // Chequeamos si supera el umbral
+        if (smoothedMAR > CURRENT_THRESHOLD) {
             yawnFrameCounter++;
-            if (
-                yawnFrameCounter / FPS >= MIN_YAWN_DURATION &&
-                mouthState === 'closed'
-            ) {
-                yawnDetected = true;
-                yawnCount++;
-                mouthState = 'open';
+            
+            // Debe mantenerse abierto por cierto tiempo (filtro anti-habla)
+            // Hablar es rápido, bostezar es lento (> 0.8s - 1.0s)
+            if (yawnFrameCounter / FPS >= MIN_YAWN_DURATION) {
+                // Solo contamos el bostezo cuando termina o alcanza su pico, 
+                // para no sumar 10 bostezos en un solo evento
+                if (mouthState === 'closed') {
+                    yawnDetected = true;
+                    yawnCount++;
+                    mouthState = 'open'; // Marcamos que ya contamos este bostezo
+                    
+                    // Opcional: Sonido sutil o log para debug
+                    console.log("🥱 Bostezo detectado! MAR:", smoothedMAR.toFixed(2));
+                }
             }
         } else {
-            yawnFrameCounter = 0;
-            mouthState = 'closed';
+            // Si baja del umbral, reseteamos, pero damos un pequeño margen (histéresis)
+            // para no cortar el bostezo si fluctúa un poco
+            if (smoothedMAR < CURRENT_THRESHOLD * 0.9) {
+                yawnFrameCounter = 0;
+                mouthState = 'closed';
+            }
         }
 
         // ===============================
