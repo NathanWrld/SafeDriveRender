@@ -24,15 +24,12 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const SMOOTHING_WINDOW = 5;
     const BASELINE_FRAMES_INIT = 60;
     const EMA_ALPHA = 0.03;
-    const BASELINE_MULTIPLIER = 0.60; // Bajamos un poco para exigir un cierre más claro
+    const BASELINE_MULTIPLIER = 0.60; 
     const CLOSED_FRAMES_THRESHOLD = 1;
     const DERIVATIVE_THRESHOLD = -0.0025;
     
     // --- UMBRALES DE TIEMPO (TOLERANTES) ---
-    // Aumentamos microsueño a 2.0s para evitar falsos positivos por frotarse los ojos
     const MICROSUEÑO_THRESHOLD = 2.0; 
-    
-    // Parpadeo lento ahora es > 0.5s (0.35s era muy rápido y común)
     const MIN_SLOW_BLINK_DURATION = 0.5; 
     
     const FPS = 30;
@@ -210,8 +207,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     // --- OJOS ABIERTOS: ANALIZAR DURACIÓN ---
                     const duration = closedFrameCounter / FPS;
                     
-                    // Solo consideramos "Lento" si supera 0.5 segundos (antes era 0.35)
-                    // Y si es menor al umbral de microsueño (2.0)
+                    // Solo consideramos "Lento" si supera 0.5 segundos
                     if (duration > MIN_SLOW_BLINK_DURATION && duration < MICROSUEÑO_THRESHOLD) {
                         slowBlinksBuffer.push(Date.now());
                         console.log(`🐢 Parpadeo Lento registrado: ${duration.toFixed(2)}s`);
@@ -231,8 +227,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         if (isYawningNow) {
             yawnFrameCounter++;
             if (yawnFrameCounter / FPS >= MIN_YAWN_DURATION && mouthState === 'closed') {
-                // ¡BOSTEZO DETECTADO! 
-                // Pero NO activamos la alerta aquí directamente. Solo lo guardamos en el historial.
+                // BOSTEZO REGISTRADO EN HISTORIAL
                 yawnsBuffer.push(Date.now());
                 yawnCountTotal++;
                 mouthState = 'open';
@@ -267,7 +262,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const popupContent = document.getElementById('popupTextContent');
 
         // --- A. ALTO RIESGO (MICROSUEÑO - ACCIÓN INMEDIATA) ---
-        // Solo si los ojos están CERRADOS AHORA por más de 2 segundos
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             
@@ -300,16 +294,11 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         } 
         
         // --- B. MODERADO (SOLO POR ACUMULACIÓN DE FACTORES) ---
-        // REGLAS DE DISPARO:
-        // 1. Al menos 3 parpadeos lentos en 1 minuto.
-        // 2. Al menos 2 bostezos en 1 minuto.
-        // 3. Combinación: 1 Bostezo + Al menos 2 parpadeos lentos.
         else if (
             recentSlowBlinks >= 3 || 
             recentYawns >= 2 || 
             (recentYawns >= 1 && recentSlowBlinks >= 2)
         ) {
-            
             riskLevel = 'Moderado';
             
             // Apagar alarma fuerte
@@ -329,7 +318,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 }
 
                 if (popupContent) {
-                    // Mensaje explicativo de POR QUÉ suena
                     let razon = "";
                     if (recentYawns >= 2) razon = "Bostezos frecuentes detectados.";
                     else if (recentSlowBlinks >= 3) razon = "Varios parpadeos lentos seguidos.";
@@ -352,6 +340,12 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     }
                 }
 
+                // =======================================================
+                // FIX: BORRÓN Y CUENTA NUEVA
+                // =======================================================
+                slowBlinksBuffer = []; 
+                yawnsBuffer = [];
+
                 // Aumentamos el cooldown a 15 segundos para no ser pesados
                 moderateAlertCooldown = true;
                 setTimeout(() => {
@@ -364,7 +358,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         // --- C. NORMAL / LEVE ---
         else {
-            if (totalBlinksLastMinute > 25) riskLevel = 'Leve'; // Subimos umbral de fatiga leve
+            if (totalBlinksLastMinute > 25) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
 
             if (alarmAudio && !alarmAudio.paused) {
