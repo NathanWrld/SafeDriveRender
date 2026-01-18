@@ -8,6 +8,8 @@ const warningPopup = document.getElementById('warningPopup');
 
 // Variables de control para la notificación preventiva
 let moderateAlertCooldown = false;
+let moderateWarningCount = 0; // Contador de advertencias
+let lastWarningTime = 0; // Para resetear el contador si pasa mucho tiempo
 
 export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef }) {
     const canvasCtx = canvasElement.getContext('2d');
@@ -243,60 +245,102 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
 
         // ===============================
-        // NIVEL DE RIESGO + ALERTAS
+        // NIVEL DE RIESGO + ALERTAS ESCALABLES
         // ===============================
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS;
+        const popupContent = document.getElementById('popupTextContent'); // Referencia al texto
 
-        // --- 1. NIVEL ALTO (ALARMA CRÍTICA) ---
+        // --------------------------------------------------------
+        // 1. NIVEL ALTO (MICROSUEÑO) -> ALARMA + POP-UP ROJO
+        // --------------------------------------------------------
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             
-            // Ocultar preventiva si estaba activa para dar paso a la crítica
-            warningPopup.classList.remove('active');
+            // Configurar Pop-up Crítico
+            warningPopup.className = "warning-popup alert-red active"; // Forzamos clase roja y active
+            popupContent.innerHTML = `
+                <h3>🚨 ¡PELIGRO! DESPIERTE 🚨</h3>
+                <p>Ojos cerrados por tiempo prolongado.</p>
+                <p>Mantenga la vista en el camino.</p>
+            `;
 
+            // Reproducir Alarma
             if (alarmAudio && alarmAudio.paused) {
                 alarmAudio.currentTime = 0;
-                alarmAudio.play().catch(e => console.log("Audio play error", e));
+                let playPromise = alarmAudio.play();
+                if (playPromise !== undefined) playPromise.catch(e => console.log(e));
             }
 
-            if (!microsleepTriggered) {
-                microsleepTriggered = true;
-                // ... (tu código de envío de evento) ...
+            // Enviar evento único
+            if (alarmAudio && alarmAudio.paused) {
+                alarmAudio.currentTime = 0;
+                let playPromise = alarmAudio.play();
+                if (playPromise !== undefined) playPromise.catch(e => console.log(e));
             }
         } 
         
-        // --- 2. NIVEL MODERADO (ALERTA PREVENTIVA) ---
+        // --------------------------------------------------------
+        // 2. NIVEL MODERADO (SOMNOLENCIA) -> LÓGICA ESCALONADA
+        // --------------------------------------------------------
         else if (closureDuration >= MIN_CLOSURE_MODERATE || (yawnDetected && mouthState === 'open')) {
             riskLevel = 'Moderado';
             
-            // Apagar alarma crítica si sonaba
+            // Apagar alarma crítica (audio fuerte) si venía de ahí
             if (alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
             }
 
-            // Lógica del Pop-up y Sonido "Ding" (SOLO UNA VEZ cada cierto tiempo)
+            // LÓGICA DE NOTIFICACIÓN (Ding + Pop-up)
             if (!moderateAlertCooldown) {
-                // 1. Reproducir sonido
+                
+                // Chequear si ha pasado mucho tiempo desde la última alerta (ej: 2 minutos)
+                // Si pasaron más de 2 min, reseteamos el contador a 0 (el usuario se recuperó un rato)
+                if (Date.now() - lastWarningTime > 120000) {
+                    moderateWarningCount = 0;
+                }
+                
+                moderateWarningCount++; // Aumentamos contador de reincidencia
+                lastWarningTime = Date.now();
+
+                // Reproducir sonido "Ding"
                 if (notifyAudio) {
                     notifyAudio.currentTime = 0;
                     notifyAudio.play().catch(e => console.error(e));
                 }
 
-                // 2. Mostrar Pop-up
-                warningPopup.classList.add('active');
+                // DECISIÓN: ¿Es advertencia leve o grave?
+                if (moderateWarningCount >= 3) {
+                    // --- CASO GRAVE (3ra vez seguida) ---
+                    warningPopup.className = "warning-popup alert-red active"; // Rojo
+                    popupContent.innerHTML = `
+                        <h3>🛑 ALTO RIESGO DE SUEÑO</h3>
+                        <p>Su nivel de atención es crítico.</p>
+                        <p>Busque un área de descanso segura.</p>
+                    `;
+                } else {
+                    // --- CASO LEVE (1ra o 2da vez) ---
+                    warningPopup.className = "warning-popup alert-orange active"; // Naranja
+                    popupContent.innerHTML = `
+                        <h3>⚠️ Signos de cansancio</h3>
+                        <p>Considere tomar un descanso pronto.</p>
+                        <p>Ventile el vehículo o hidrátese.</p>
+                    `;
+                }
 
-                // 3. Activar Cooldown para no spammear
+                // Activar Cooldown (10 segundos para no spammear)
                 moderateAlertCooldown = true;
 
-                // 4. Ocultar Pop-up automáticamente después de 4 segundos
+                // Ocultar Pop-up a los 5 segundos
                 setTimeout(() => {
-                    warningPopup.classList.remove('active');
-                }, 4000);
+                    // Solo ocultar si NO estamos en Riesgo Alto actualmente
+                    if (riskLevel !== 'Alto riesgo') {
+                        warningPopup.classList.remove('active');
+                    }
+                }, 5000);
 
-                // 5. Resetear el Cooldown después de 10 segundos
-                // (Para que si sigue con sueño, le vuelva a avisar en 10s)
+                // Resetear Cooldown
                 setTimeout(() => {
                     moderateAlertCooldown = false;
                 }, 10000);
@@ -305,21 +349,23 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             lastModerateTimestamp = now;
         } 
 
-        // --- 3. OTROS NIVELES (RESET) ---
+        // --------------------------------------------------------
+        // 3. NIVELES BAJOS (NORMAL / LEVE) -> LIMPIEZA
+        // --------------------------------------------------------
         else {
-            // Persistencia visual del estado en el texto (sin sonido)
-            if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
-                riskLevel = 'Moderado';
-            } else if (totalBlinksLastMinute > 20) {
-                riskLevel = 'Leve';
-            } else {
-                riskLevel = 'Normal';
-            }
+            if (totalBlinksLastMinute > 20) riskLevel = 'Leve';
+            else riskLevel = 'Normal';
 
-            // Si el riesgo baja, aseguramos silencio total
+            // Asegurar que la alarma crítica se apague
             if (alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
+            }
+            
+            // Si el usuario vuelve a normalidad total, el pop-up se ocultará 
+            // gracias al setTimeout de arriba o al quitar la clase active manual:
+            if (!moderateAlertCooldown && riskLevel === 'Normal') {
+                 warningPopup.classList.remove('active');
             }
         }
 

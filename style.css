@@ -526,37 +526,59 @@ canvas {
 /* ==========================================================================
    POP-UP PREVENTIVO (MODERADO)
    ========================================================================== */
+/* Estilos base del Pop-up */
 .warning-popup {
     position: fixed;
-    top: 20px; /* Aparece arriba para que se vea fácil */
+    top: 30px;
     left: 50%;
-    transform: translateX(-50%) translateY(-150%); /* Oculto por defecto hacia arriba */
-    background: #f59e0b; /* Naranja precuación */
-    color: #fff;
-    padding: 20px 40px;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    transform: translateX(-50%) translateY(-200%); /* Oculto arriba */
+    padding: 25px 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
     z-index: 2000;
     text-align: center;
-    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    width: 80%;
-    max-width: 400px;
-    border: 2px solid #fff;
+    width: 85%;
+    max-width: 450px;
+    border: 3px solid #fff;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .warning-popup.active {
-    transform: translateX(-50%) translateY(0); /* Entra a la pantalla */
+    transform: translateX(-50%) translateY(0);
+}
+
+/* VARIANTE 1: MODERADO (Naranja) */
+.warning-popup.alert-orange {
+    background: #f59e0b;
+}
+
+/* VARIANTE 2: CRÍTICO (Rojo - Para Nivel Alto o Moderado Persistente) */
+.warning-popup.alert-red {
+    background: #ef4444;
+    animation: pulseRed 1s infinite; /* Efecto de latido */
 }
 
 .warning-content h3 {
     margin: 0 0 10px 0;
-    font-size: 24px;
+    font-size: 26px;
     color: #fff;
     text-transform: uppercase;
+    font-weight: 800;
 }
 
 .warning-content p {
     margin: 5px 0;
     font-size: 18px;
     font-weight: 600;
+}
+
+/* Animación para el estado crítico */
+@keyframes pulseRed {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
