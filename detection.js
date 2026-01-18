@@ -2,6 +2,7 @@
 // Detección de parpadeos, fatiga, somnolencia y microsueño
 
 const BACKEND_URL = 'https://safe-drive-backend.onrender.com';
+const alarmAudio = document.getElementById('alarmSound');
 
 export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef }) {
     const canvasCtx = canvasElement.getContext('2d');
@@ -238,11 +239,28 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         // ===============================
         // NIVEL DE RIESGO (FIX DEFINITIVO)
         // ===============================
+        // ===============================
+        // NIVEL DE RIESGO (LÓGICA MEJORADA + ALARMA)
+        // ===============================
         let riskLevel = 'Normal';
-        const closureDuration = closedFrameCounter / FPS;
+        const closureDuration = closedFrameCounter / FPS; // Tiempo actual con ojos cerrados
 
+        // 1. NIVEL ALTO (Microsueño > 1.5s) -> SUENA ALARMA
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
-            riskLevel = 'Alto';
+            riskLevel = 'Alto riesgo'; // Usamos el string exacto de tu array riskLevels
+            
+            // Activar sonido si no está sonando ya
+            if (alarmAudio && alarmAudio.paused) {
+                alarmAudio.currentTime = 0;
+                // El play debe ser resultado de una promesa para evitar errores de navegador
+                let playPromise = alarmAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("El navegador bloqueó el audio automático: " + error);
+                    });
+                }
+            }
+
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
                 sendDetectionEvent({
@@ -255,13 +273,37 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     immediate: true
                 });
             }
-        } else if (closureDuration >= MIN_CLOSURE_MODERATE) {
+        } 
+        
+        // 2. NIVEL MODERADO (Cierres lentos > 0.4s O Bostezo activo)
+        // Nota: Quitamos la dependencia estricta de "blinkRate > 20" aquí, priorizamos la duración.
+        else if (closureDuration >= MIN_CLOSURE_MODERATE || (yawnDetected && mouthState === 'open')) {
             riskLevel = 'Moderado';
             lastModerateTimestamp = now;
-        } else if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
+            
+            // Si venía de Alto riesgo, apagamos la alarma
+            if (alarmAudio && !alarmAudio.paused) {
+                alarmAudio.pause();
+                alarmAudio.currentTime = 0;
+            }
+        } 
+
+        // Persistencia del estado Moderado (para evitar parpadeo de estados en UI)
+        else if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
             riskLevel = 'Moderado';
-        } else if (totalBlinksLastMinute > MIN_BLINKS_NORMAL) {
+            if (alarmAudio && !alarmAudio.paused) alarmAudio.pause();
+        } 
+
+        // 3. NIVEL LEVE (Fatiga: Mucha frecuencia > 20 parpadeos/min)
+        else if (totalBlinksLastMinute > 20) {
             riskLevel = 'Leve';
+            if (alarmAudio && !alarmAudio.paused) alarmAudio.pause();
+        } 
+
+        // 4. NORMAL
+        else {
+            riskLevel = 'Normal';
+            if (alarmAudio && !alarmAudio.paused) alarmAudio.pause();
         }
 
         // ===============================
@@ -311,6 +353,12 @@ export function stopDetection(cameraRef) {
     if (cameraRef.current) {
         cameraRef.current.stop();
         cameraRef.current = null;
+    }
+
+    // APAGAR ALARMA AL DETENER
+    if (alarmAudio) {
+        alarmAudio.pause();
+        alarmAudio.currentTime = 0;
     }
 }
 
