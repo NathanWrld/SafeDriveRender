@@ -29,16 +29,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const DERIVATIVE_THRESHOLD = -0.0025;
     const MICROSUEÑO_THRESHOLD = 1.5; // segundos
     const FPS = 30;
-    const MIN_BLINKS_NORMAL = 20;
     const MIN_CLOSURE_MODERATE = 0.4;
-
-    // FIX: persistencia mínima del riesgo moderado
     const MODERATE_PERSISTENCE_MS = 3000;
-
-    // FIX BOSTEZOS
     const MIN_YAWN_DURATION = 0.8; // segundos
-
-    // FIX MICROFLUCTUACIONES
     const EYE_REOPEN_GRACE_FRAMES = 3;
 
     // ===============================
@@ -46,7 +39,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     // ===============================
     let blinkTimestamps = [];
     let yawnCount = 0;
-
     let earHistory = [];
     let mouthHistory = [];
     let baselineSamples = [];
@@ -57,7 +49,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let mouthState = 'closed';
     let closedFrameCounter = 0;
     let reopenGraceCounter = 0;
-
     let prevSmoothedEAR = 0;
 
     let dynamicEARBaseline = null;
@@ -65,8 +56,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
     let lastModerateTimestamp = 0;
     let microsleepTriggered = false;
-
-    // FIX BOSTEZOS
     let yawnFrameCounter = 0;
 
     // ===============================
@@ -91,26 +80,17 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     }
 
     function calculateMAR_px(landmarks, indices) {
-        // Mapeamos los puntos a píxeles
         const p = indices.map(i => toPixel(landmarks[i]));
-        
         // p[0]=61 (izq), p[1]=291 (der) -> ANCHO HORIZONTAL
         const horizontal = dist(p[0], p[1]);
         
-        // Distancias Verticales:
-        // p[2]=13, p[3]=14 (Centro)
-        const v1 = dist(p[2], p[3]);
-        // p[4]=81, p[5]=178 (Lateral A)
-        const v2 = dist(p[4], p[5]);
-        // p[6]=311, p[7]=402 (Lateral B)
-        const v3 = dist(p[6], p[7]);
-
-        // Promedio de las alturas verticales
+        // Distancias Verticales (Promedio de 3 alturas)
+        const v1 = dist(p[2], p[3]); // Centro
+        const v2 = dist(p[4], p[5]); // Lateral A
+        const v3 = dist(p[6], p[7]); // Lateral B
         const verticalAvg = (v1 + v2 + v3) / 3;
 
         if (horizontal === 0) return 0;
-        
-        // Relación Aspecto
         return verticalAvg / horizontal;
     }
 
@@ -119,14 +99,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     // ===============================
     const RIGHT_EYE_IDX = [33, 160, 158, 133, 153, 144];
     const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
-    // ===============================
+    
     // ÍNDICES MEJORADOS (Boca Interior)
-    // ===============================
-    // Usamos:
-    // 61, 291: Comisuras (izquierda/derecha)
-    // 13, 14: Centro labios (arriba/abajo - interior)
-    // 81, 178: Vertical lateral 1
-    // 311, 402: Vertical lateral 2
     const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402];
 
     // ===============================
@@ -144,7 +118,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     });
 
     // ===============================
-    // RESULTADOS
+    // PROCESAMIENTO DE RESULTADOS
     // ===============================
     faceMesh.onResults((results) => {
         if (!results.image) return;
@@ -165,9 +139,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         const lm = results.multiFaceLandmarks[0];
 
-        // ===============================
-        // EAR / MAR
-        // ===============================
+        // --- CÁLCULOS EAR / MAR ---
         const rightEAR = calculateEAR_px(lm, RIGHT_EYE_IDX);
         const leftEAR = calculateEAR_px(lm, LEFT_EYE_IDX);
         const earPx = (rightEAR + leftEAR) / 2;
@@ -177,9 +149,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const faceWidthPx = Math.max(...xs) - Math.min(...xs);
         const earRel = faceWidthPx > 0 ? earPx / faceWidthPx : earPx;
 
-        // ===============================
-        // CALIBRACIÓN INICIAL
-        // ===============================
+        // --- CALIBRACIÓN INICIAL ---
         if (!initialCalibrationDone) {
             if (earRel > 0) baselineSamples.push(earRel);
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
@@ -187,13 +157,10 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 dynamicEARBaseline = baselineEMA;
                 initialCalibrationDone = true;
             }
-            // NO RESTAURAR AQUÍ
             return;
         }
 
-        // ===============================
-        // SUAVIZADO
-        // ===============================
+        // --- SUAVIZADO ---
         earHistory.push(earRel);
         if (earHistory.length > SMOOTHING_WINDOW) earHistory.shift();
         mouthHistory.push(mar);
@@ -205,26 +172,39 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         prevSmoothedEAR = smoothedEAR;
 
         // ===============================
-        // CALIBRACIÓN DINÁMICA (FIX)
+        // 1. DETERMINAR SI ESTÁ BOSTEZANDO AHORA (Prioritario)
         // ===============================
-        if (smoothedEAR > 0 && eyeState === 'open') {
+        const MIN_YAWN_MAR = 0.50; 
+        const CURRENT_YAWN_THRESHOLD = Math.max(dynamicMARBaseline * 1.4, MIN_YAWN_MAR);
+        
+        // Variable booleana: ¿Está la boca abierta en posición de bostezo AHORA MISMO?
+        const isYawningNow = smoothedMAR > CURRENT_YAWN_THRESHOLD;
+
+        // --- CALIBRACIÓN DINÁMICA ---
+        // Solo actualizamos el promedio de ojos si NO está bostezando
+        if (smoothedEAR > 0 && eyeState === 'open' && !isYawningNow) {
             dynamicEARBaseline = EMA_ALPHA * smoothedEAR + (1 - EMA_ALPHA) * dynamicEARBaseline;
         }
-
         if (mouthState === 'closed') {
             dynamicMARBaseline = EMA_ALPHA * smoothedMAR + (1 - EMA_ALPHA) * dynamicMARBaseline;
         }
 
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
-        const YAWN_THRESHOLD = dynamicMARBaseline * 1.3;
 
         // ===============================
-        // OJOS (FIX ROBUSTO)
+        // 2. LÓGICA DE OJOS (CON PROTECCIÓN ANTI-BOSTEZO)
         // ===============================
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
         if (consideredClosed) {
-            closedFrameCounter++;
+            if (isYawningNow) {
+                // Si bosteza, ignoramos los ojos cerrados (es reflejo natural)
+                closedFrameCounter = 0; 
+                reopenGraceCounter = 0;
+            } else {
+                closedFrameCounter++;
+            }
+
             reopenGraceCounter = 0;
             if (eyeState === 'open' && closedFrameCounter >= CLOSED_FRAMES_THRESHOLD) {
                 eyeState = 'closed';
@@ -242,191 +222,160 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         }
 
         // ===============================
-        // BOSTEZOS (LÓGICA MEJORADA)
+        // 3. LÓGICA DE BOSTEZOS (CONTADOR DE EVENTOS)
         // ===============================
-        
-        // Umbral híbrido:
-        // 1. Debe ser mayor al baseline dinámico (para adaptarse a la cara)
-        // 2. PERO TAMBIÉN debe superar un mínimo fijo de 0.5 (para evitar detectar hablar como bostezo)
-        const MIN_YAWN_MAR = 0.50; 
-        const CURRENT_THRESHOLD = Math.max(dynamicMARBaseline * 1.4, MIN_YAWN_MAR);
-
         let yawnDetected = false;
-        
-        // Chequeamos si supera el umbral
-        if (smoothedMAR > CURRENT_THRESHOLD) {
+        if (isYawningNow) {
             yawnFrameCounter++;
-            
-            // Debe mantenerse abierto por cierto tiempo (filtro anti-habla)
-            // Hablar es rápido, bostezar es lento (> 0.8s - 1.0s)
-            if (yawnFrameCounter / FPS >= MIN_YAWN_DURATION) {
-                // Solo contamos el bostezo cuando termina o alcanza su pico, 
-                // para no sumar 10 bostezos en un solo evento
-                if (mouthState === 'closed') {
-                    yawnDetected = true;
-                    yawnCount++;
-                    mouthState = 'open'; // Marcamos que ya contamos este bostezo
-                    
-                    // Opcional: Sonido sutil o log para debug
-                    console.log("🥱 Bostezo detectado! MAR:", smoothedMAR.toFixed(2));
-                }
+            // Filtro de duración para evitar falsos positivos al hablar
+            if (yawnFrameCounter / FPS >= MIN_YAWN_DURATION && mouthState === 'closed') {
+                yawnDetected = true;
+                yawnCount++;
+                mouthState = 'open';
             }
         } else {
-            // Si baja del umbral, reseteamos, pero damos un pequeño margen (histéresis)
-            // para no cortar el bostezo si fluctúa un poco
-            if (smoothedMAR < CURRENT_THRESHOLD * 0.9) {
+            if (smoothedMAR < CURRENT_YAWN_THRESHOLD * 0.9) {
                 yawnFrameCounter = 0;
                 mouthState = 'closed';
             }
         }
 
-        // ===============================
-        // PARPADEOS ÚLTIMO MINUTO
-        // ===============================
+        // --- PARPADEOS ---
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
         const totalBlinksLastMinute = blinkTimestamps.length;
-
 
         // ===============================
         // NIVEL DE RIESGO + ALERTAS ESCALABLES
         // ===============================
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS;
-        const popupContent = document.getElementById('popupTextContent'); // Referencia al texto
+        const popupContent = document.getElementById('popupTextContent');
 
         // --------------------------------------------------------
-        // 1. NIVEL ALTO (MICROSUEÑO) -> ALARMA + POP-UP ROJO
+        // A. NIVEL ALTO (MICROSUEÑO)
         // --------------------------------------------------------
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             
-            // Configurar Pop-up Crítico
-            warningPopup.className = "warning-popup alert-red active"; // Forzamos clase roja y active
-            popupContent.innerHTML = `
-                <h3>🚨 ¡PELIGRO! DESPIERTE 🚨</h3>
-                <p>Ojos cerrados por tiempo prolongado.</p>
-                <p>Mantenga la vista en el camino.</p>
-            `;
+            // Pop-up Crítico
+            warningPopup.className = "warning-popup alert-red active";
+            if (popupContent) {
+                popupContent.innerHTML = `
+                    <h3>🚨 ¡PELIGRO! DESPIERTE 🚨</h3>
+                    <p>Ojos cerrados por tiempo prolongado.</p>
+                    <p>Mantenga la vista en el camino.</p>
+                `;
+            }
 
-            // Reproducir Alarma
+            // Alarma
             if (alarmAudio && alarmAudio.paused) {
                 alarmAudio.currentTime = 0;
                 let playPromise = alarmAudio.play();
                 if (playPromise !== undefined) playPromise.catch(e => console.log(e));
             }
 
-            // Enviar evento único
-            if (alarmAudio && alarmAudio.paused) {
-                alarmAudio.currentTime = 0;
-                let playPromise = alarmAudio.play();
-                if (playPromise !== undefined) playPromise.catch(e => console.log(e));
+            // Enviar evento backend
+            if (!microsleepTriggered) {
+                microsleepTriggered = true;
+                sendDetectionEvent({
+                    blinkRate: totalBlinksLastMinute,
+                    ear: smoothedEAR,
+                    riskLevel,
+                    yawnDetected,
+                    totalBlinks: totalBlinksLastMinute,
+                    totalYawns: yawnCount,
+                    immediate: true
+                });
             }
         } 
         
         // --------------------------------------------------------
-        // 2. NIVEL MODERADO (SOMNOLENCIA) -> LÓGICA ESCALONADA
+        // B. NIVEL MODERADO (SOMNOLENCIA)
         // --------------------------------------------------------
         else if (closureDuration >= MIN_CLOSURE_MODERATE || (yawnDetected && mouthState === 'open')) {
             riskLevel = 'Moderado';
             
-            // Apagar alarma crítica (audio fuerte) si venía de ahí
+            // Apagar alarma fuerte
             if (alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
             }
 
-            // LÓGICA DE NOTIFICACIÓN (Ding + Pop-up)
+            // Gestión de Notificación Preventiva
             if (!moderateAlertCooldown) {
-                
-                // Chequear si ha pasado mucho tiempo desde la última alerta (ej: 2 minutos)
-                // Si pasaron más de 2 min, reseteamos el contador a 0 (el usuario se recuperó un rato)
+                // Resetear contador si pasó mucho tiempo (> 2 mins)
                 if (Date.now() - lastWarningTime > 120000) {
                     moderateWarningCount = 0;
                 }
                 
-                moderateWarningCount++; // Aumentamos contador de reincidencia
+                moderateWarningCount++;
                 lastWarningTime = Date.now();
 
-                // Reproducir sonido "Ding"
+                // Sonido "Ding"
                 if (notifyAudio) {
                     notifyAudio.currentTime = 0;
                     notifyAudio.play().catch(e => console.error(e));
                 }
 
-                // DECISIÓN: ¿Es advertencia leve o grave?
-                if (moderateWarningCount >= 3) {
-                    // --- CASO GRAVE (3ra vez seguida) ---
-                    warningPopup.className = "warning-popup alert-red active"; // Rojo
-                    popupContent.innerHTML = `
-                        <h3>🛑 ALTO RIESGO DE SUEÑO</h3>
-                        <p>Su nivel de atención es crítico.</p>
-                        <p>Busque un área de descanso segura.</p>
-                    `;
-                } else {
-                    // --- CASO LEVE (1ra o 2da vez) ---
-                    warningPopup.className = "warning-popup alert-orange active"; // Naranja
-                    popupContent.innerHTML = `
-                        <h3>⚠️ Signos de cansancio</h3>
-                        <p>Considere tomar un descanso pronto.</p>
-                        <p>Ventile el vehículo o hidrátese.</p>
-                    `;
+                if (popupContent) {
+                    if (moderateWarningCount >= 3) {
+                        // GRAVE (Reincidencia)
+                        warningPopup.className = "warning-popup alert-red active";
+                        popupContent.innerHTML = `
+                            <h3>🛑 ALTO RIESGO DE SUEÑO</h3>
+                            <p>Su nivel de atención es crítico.</p>
+                            <p>Busque un área de descanso segura.</p>
+                        `;
+                    } else {
+                        // LEVE (1ra vez)
+                        warningPopup.className = "warning-popup alert-orange active";
+                        popupContent.innerHTML = `
+                            <h3>⚠️ Signos de cansancio</h3>
+                            <p>Considere tomar un descanso pronto.</p>
+                            <p>Ventile el vehículo o hidrátese.</p>
+                        `;
+                    }
                 }
 
-                // Activar Cooldown (10 segundos para no spammear)
+                // Cooldowns
                 moderateAlertCooldown = true;
-
-                // Ocultar Pop-up a los 5 segundos
                 setTimeout(() => {
-                    // Solo ocultar si NO estamos en Riesgo Alto actualmente
-                    if (riskLevel !== 'Alto riesgo') {
-                        warningPopup.classList.remove('active');
-                    }
-                }, 5000);
-
-                // Resetear Cooldown
-                setTimeout(() => {
-                    moderateAlertCooldown = false;
-                }, 10000);
+                    if (riskLevel !== 'Alto riesgo') warningPopup.classList.remove('active');
+                }, 5000); // Ocultar pop-up
+                setTimeout(() => moderateAlertCooldown = false, 10000); // Permitir nueva alerta
             }
             
             lastModerateTimestamp = now;
         } 
 
         // --------------------------------------------------------
-        // 3. NIVELES BAJOS (NORMAL / LEVE) -> LIMPIEZA
+        // C. NIVELES BAJOS (NORMAL / LEVE)
         // --------------------------------------------------------
         else {
             if (totalBlinksLastMinute > 20) riskLevel = 'Leve';
             else riskLevel = 'Normal';
 
-            // Asegurar que la alarma crítica se apague
             if (alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
             }
             
-            // Si el usuario vuelve a normalidad total, el pop-up se ocultará 
-            // gracias al setTimeout de arriba o al quitar la clase active manual:
             if (!moderateAlertCooldown && riskLevel === 'Normal') {
                  warningPopup.classList.remove('active');
             }
         }
 
-        // ===============================
-        // DIBUJO DE MALLA PARA DEVS
-        // ===============================
+        // --- DIBUJO DEV ---
         if (isDev) {
             drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
             drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
             drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
             drawConnectors(canvasCtx, lm, FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
-            canvasCtx.restore(); // SOLO AQUÍ
+            canvasCtx.restore();
         }
 
-        // ===============================
-        // ENVÍO NORMAL (~10s)
-        // ===============================
+        // --- ENVÍO PERIÓDICO ---
         if (now % 10000 < 60) {
             sendDetectionEvent({
                 blinkRate: totalBlinksLastMinute,
@@ -461,11 +410,12 @@ export function stopDetection(cameraRef) {
         cameraRef.current.stop();
         cameraRef.current = null;
     }
-
-    // APAGAR ALARMA AL DETENER
     if (alarmAudio) {
         alarmAudio.pause();
         alarmAudio.currentTime = 0;
+    }
+    if (warningPopup) {
+        warningPopup.classList.remove('active');
     }
 }
 
