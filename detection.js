@@ -1,5 +1,5 @@
 // detection.js
-// Lógica de detección de parpadeos y fatiga (modularizada)
+// Detección de parpadeos, fatiga y bostezos con indicador en tiempo real
 
 const BACKEND_URL = 'https://safe-drive-backend.onrender.com';
 
@@ -11,7 +11,8 @@ export function startDetection({
     videoElement,
     canvasElement,
     estado,
-    cameraRef
+    cameraRef,
+    yawnIndicator // elemento HTML donde se mostrará "Bostezo detectado"
 }) {
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
@@ -29,6 +30,7 @@ export function startDetection({
     const CLOSED_FRAMES_THRESHOLD = 1;
     const MIN_TIME_BETWEEN_BLINKS = 150;
     const DERIVATIVE_THRESHOLD = -0.0025;
+    const YAWN_THRESHOLD = 0.6; // relación altura/ancho de boca para bostezar
 
     // ===============================
     // ESTADO
@@ -46,14 +48,13 @@ export function startDetection({
     let closedFrameCounter = 0;
     let prevSmoothedEAR = 0;
 
+    let lastEventSentAt = 0;
+
     // ===============================
     // UTILIDADES
     // ===============================
     function toPixel(l) {
-        return {
-            x: l.x * canvasElement.width,
-            y: l.y * canvasElement.height
-        };
+        return { x: l.x * canvasElement.width, y: l.y * canvasElement.height };
     }
 
     function dist(a, b) {
@@ -69,37 +70,41 @@ export function startDetection({
         if (!arr.length) return 0;
         const a = [...arr].sort((x, y) => x - y);
         const m = Math.floor(a.length / 2);
-        return a.length % 2 === 0
-            ? (a[m - 1] + a[m]) / 2
-            : a[m];
+        return arr.length % 2 === 0 ? (a[m - 1] + a[m]) / 2 : a[m];
     }
 
     function calculateEAR_px(landmarks, indices) {
-        const [p0, p1, p2, p3, p4, p5] =
-            indices.map(i => toPixel(landmarks[i]));
-
+        const [p0, p1, p2, p3, p4, p5] = indices.map(i => toPixel(landmarks[i]));
         const vertical1 = dist(p1, p5);
         const vertical2 = dist(p2, p4);
         const horizontal = dist(p0, p3);
-
         if (horizontal === 0) return 0;
         return (vertical1 + vertical2) / (2 * horizontal);
+    }
+
+    function calculateMouthOpenRatio(landmarks) {
+        // landmark 13 (labio superior) y 14 (labio inferior), ancho 78-308
+        const top = toPixel(landmarks[13]);
+        const bottom = toPixel(landmarks[14]);
+        const left = toPixel(landmarks[78]);
+        const right = toPixel(landmarks[308]);
+        const vertical = dist(top, bottom);
+        const horizontal = dist(left, right);
+        return horizontal > 0 ? vertical / horizontal : 0;
     }
 
     // ===============================
     // ÍNDICES DE OJOS
     // ===============================
     const RIGHT_EYE_IDX = [33, 160, 158, 133, 153, 144];
-    const LEFT_EYE_IDX  = [362, 385, 387, 263, 373, 380];
+    const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
 
     // ===============================
     // MEDIAPIPE FACE MESH
     // ===============================
     const faceMesh = new FaceMesh({
-        locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
-
     faceMesh.setOptions({
         maxNumFaces: 1,
         refineLandmarks: true,
@@ -110,7 +115,7 @@ export function startDetection({
     // ===============================
     // RESULTADOS
     // ===============================
-    faceMesh.onResults((results) => {
+    faceMesh.onResults(results => {
         if (!results.image) return;
 
         if (isDev) {
@@ -118,13 +123,7 @@ export function startDetection({
             canvasElement.height = results.image.height;
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(
-                results.image,
-                0,
-                0,
-                canvasElement.width,
-                canvasElement.height
-            );
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
         }
 
         if (!results.multiFaceLandmarks?.length) {
@@ -136,25 +135,16 @@ export function startDetection({
         const lm = results.multiFaceLandmarks[0];
 
         if (isDev) {
-            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, {
-                color: '#00C853',
-                lineWidth: 0.5
-            });
-            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, {
-                color: '#FF5722',
-                lineWidth: 1
-            });
-            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, {
-                color: '#FF5722',
-                lineWidth: 1
-            });
+            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
+            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
         }
 
         // ===============================
         // EAR NORMALIZADO
         // ===============================
         const rightEAR = calculateEAR_px(lm, RIGHT_EYE_IDX);
-        const leftEAR  = calculateEAR_px(lm, LEFT_EYE_IDX);
+        const leftEAR = calculateEAR_px(lm, LEFT_EYE_IDX);
         const earPx = (rightEAR + leftEAR) / 2;
 
         const xs = lm.map(p => p.x * canvasElement.width);
@@ -166,20 +156,12 @@ export function startDetection({
         // ===============================
         if (!initialCalibrationDone) {
             if (earRel > 0) baselineSamples.push(earRel);
-
-            const remaining =
-                BASELINE_FRAMES_INIT - baselineSamples.length;
-
-            estado.innerHTML = `
-                <p>✅ Rostro detectado — calibrando...</p>
-                <p>Frames restantes: ${Math.max(0, remaining)}</p>
-            `;
-
+            const remaining = BASELINE_FRAMES_INIT - baselineSamples.length;
+            estado.innerHTML = `<p>✅ Rostro detectado — calibrando...</p><p>Frames restantes: ${Math.max(0, remaining)}</p>`;
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
                 baselineEMA = median(baselineSamples) || 0.01;
                 initialCalibrationDone = true;
             }
-
             if (isDev) canvasCtx.restore();
             return;
         }
@@ -189,30 +171,20 @@ export function startDetection({
         // ===============================
         earHistory.push(earRel);
         if (earHistory.length > SMOOTHING_WINDOW) earHistory.shift();
-
         const smoothedEAR = movingAverage(earHistory);
         const derivative = smoothedEAR - prevSmoothedEAR;
         prevSmoothedEAR = smoothedEAR;
 
-        baselineEMA =
-            EMA_ALPHA * smoothedEAR +
-            (1 - EMA_ALPHA) * baselineEMA;
-
+        baselineEMA = EMA_ALPHA * smoothedEAR + (1 - EMA_ALPHA) * baselineEMA;
         const EAR_THRESHOLD = baselineEMA * BASELINE_MULTIPLIER;
         const rapidDrop = derivative < DERIVATIVE_THRESHOLD;
-        const consideredClosed =
-            smoothedEAR < EAR_THRESHOLD || rapidDrop;
+        const consideredClosed = smoothedEAR < EAR_THRESHOLD || rapidDrop;
 
         const now = Date.now();
 
         if (consideredClosed) {
             closedFrameCounter++;
-            if (
-                eyeState === 'open' &&
-                closedFrameCounter >= CLOSED_FRAMES_THRESHOLD
-            ) {
-                eyeState = 'closed';
-            }
+            if (eyeState === 'open' && closedFrameCounter >= CLOSED_FRAMES_THRESHOLD) eyeState = 'closed';
         } else {
             if (eyeState === 'closed') {
                 if (now - lastBlinkTime > MIN_TIME_BETWEEN_BLINKS) {
@@ -227,28 +199,29 @@ export function startDetection({
         // ===============================
         // BPM
         // ===============================
-        const elapsedMinutes =
-            (now - blinkStartTime) / 60000;
-
+        const elapsedMinutes = (now - blinkStartTime) / 60000;
         if (elapsedMinutes >= 1) {
             blinkCount = 0;
             blinkStartTime = now;
         }
-
-        const bpm =
-            blinkCount / (elapsedMinutes || 1);
-
+        const bpm = blinkCount / (elapsedMinutes || 1);
         const riskLevel = getRiskLevel(bpm);
+
+        // ===============================
+        // DETECCIÓN BOSTEZO
+        // ===============================
+        const mouthRatio = calculateMouthOpenRatio(lm);
+        const isYawning = mouthRatio > YAWN_THRESHOLD;
+        if (yawnIndicator) {
+            yawnIndicator.style.display = isYawning ? 'block' : 'none';
+        }
 
         // ===============================
         // ENVÍO AL BACKEND (cada ~10s)
         // ===============================
-        if (now % 10000 < 60) {
-            sendDetectionEvent({
-                blinkRate: bpm,
-                ear: smoothedEAR,
-                riskLevel
-            });
+        if (now - lastEventSentAt > 10000) {
+            lastEventSentAt = now;
+            sendDetectionEvent({ blinkRate: bpm, ear: smoothedEAR, riskLevel });
         }
 
         estado.innerHTML = `
@@ -256,6 +229,7 @@ export function startDetection({
             <p>Parpadeos/min: ${bpm.toFixed(1)}</p>
             <p>EAR: ${smoothedEAR.toFixed(6)}</p>
             <p>Riesgo: ${riskLevel}</p>
+            <p>Bostezo: ${isYawning ? 'Sí' : 'No'}</p>
         `;
 
         if (isDev) canvasCtx.restore();
@@ -265,9 +239,7 @@ export function startDetection({
     // CÁMARA
     // ===============================
     cameraRef.current = new Camera(videoElement, {
-        onFrame: async () => {
-            await faceMesh.send({ image: videoElement });
-        },
+        onFrame: async () => await faceMesh.send({ image: videoElement }),
         width: 480,
         height: 360
     });
@@ -278,11 +250,12 @@ export function startDetection({
 // ===============================
 // DETENER DETECCIÓN
 // ===============================
-export function stopDetection(cameraRef) {
+export function stopDetection(cameraRef, yawnIndicator) {
     if (cameraRef.current) {
         cameraRef.current.stop();
         cameraRef.current = null;
     }
+    if (yawnIndicator) yawnIndicator.style.display = 'none';
 }
 
 // ===============================
