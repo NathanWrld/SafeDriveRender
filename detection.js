@@ -3,9 +3,6 @@
 
 const BACKEND_URL = 'https://safe-drive-backend.onrender.com';
 
-// ===============================
-// FUNCIÓN PRINCIPAL
-// ===============================
 export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef }) {
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
@@ -21,18 +18,18 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const EMA_ALPHA = 0.03;
     const BASELINE_MULTIPLIER = 0.62;
     const CLOSED_FRAMES_THRESHOLD = 1;
-    const MIN_TIME_BETWEEN_BLINKS = 150;
     const DERIVATIVE_THRESHOLD = -0.0025;
     const MICROSUEÑO_THRESHOLD = 1.5; // segundos
-    const INITIAL_YAWN_THRESHOLD = 0.65;
     const FPS = 30; // frames por segundo aproximado
+    const MIN_BLINKS_NORMAL = 20; // parpadeos por minuto normal
+    const MIN_CLOSURE_MODERATE = 0.25; // segundos
+    const MIN_CLOSURE_HIGH = MICROSUEÑO_THRESHOLD;
 
     // ===============================
     // ESTADO
     // ===============================
-    let blinkTimestamps = []; // timestamps de parpadeos
+    let blinkTimestamps = [];
     let yawnCount = 0;
-    let blinkStartTime = Date.now();
 
     let earHistory = [];
     let mouthHistory = [];
@@ -46,7 +43,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let prevSmoothedEAR = 0;
 
     let dynamicEARBaseline = null;
-    let dynamicMARBaseline = INITIAL_YAWN_THRESHOLD;
+    let dynamicMARBaseline = 0.65;
 
     // ===============================
     // UTILIDADES
@@ -173,24 +170,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             if(eyeState==='open' && closedFrameCounter>=CLOSED_FRAMES_THRESHOLD) eyeState='closed';
         } else {
             if(eyeState==='closed'){
-                const now = Date.now();
-                blinkTimestamps.push(now);
+                blinkTimestamps.push(Date.now());
                 eyeState='open';
-
-                // ALERTA INMEDIATA MICROSUEÑO
-                const closureDuration = closedFrameCounter/FPS;
-                if(closureDuration>=MICROSUEÑO_THRESHOLD){
-                    sendDetectionEvent({
-                        blinkRate: blinkTimestamps.length,
-                        ear: smoothedEAR,
-                        riskLevel:'Alto',
-                        yawnDetected: smoothedMAR>YAWN_THRESHOLD,
-                        totalBlinks: blinkTimestamps.length,
-                        totalYawns: yawnCount,
-                        immediate:true
-                    });
-                }
-
                 closedFrameCounter=0;
             }
         }
@@ -203,7 +184,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         else if(smoothedMAR<=YAWN_THRESHOLD) mouthState='closed';
 
         // ===============================
-        // CALCULAR PARPÁDEOS ÚLTIMO MINUTO
+        // PARPÁDEOS ÚLTIMA MINUTO
         // ===============================
         const oneMinuteAgo = Date.now()-60000;
         blinkTimestamps = blinkTimestamps.filter(ts=>ts>oneMinuteAgo);
@@ -212,7 +193,25 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         // ===============================
         // NIVEL DE RIESGO
         // ===============================
-        const riskLevel = getRiskLevel(totalBlinksLastMinute, closedFrameCounter/FPS);
+        let riskLevel='Normal';
+        const closureDuration = closedFrameCounter/FPS;
+
+        if(closureDuration >= MICROSUEÑO_THRESHOLD){
+            riskLevel='Alto'; // microsueño
+            sendDetectionEvent({
+                blinkRate: totalBlinksLastMinute,
+                ear: smoothedEAR,
+                riskLevel,
+                yawnDetected,
+                totalBlinks: totalBlinksLastMinute,
+                totalYawns: yawnCount,
+                immediate:true
+            });
+        } else if(totalBlinksLastMinute>MIN_BLINKS_NORMAL && closureDuration>=MIN_CLOSURE_MODERATE){
+            riskLevel='Moderado';
+        } else if(totalBlinksLastMinute>MIN_BLINKS_NORMAL){
+            riskLevel='Leve';
+        }
 
         // ===============================
         // ENVÍO AL BACKEND (~10s)
@@ -228,7 +227,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             });
         }
 
-        estado.innerHTML = `
+        estado.innerHTML=`
             <p>✅ Rostro detectado</p>
             <p>Parpadeos total último minuto: ${totalBlinksLastMinute}</p>
             <p>Bostezos: ${yawnCount}</p>
@@ -247,14 +246,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     cameraRef.current.start();
 }
 
-// ===============================
-// DETENER DETECCIÓN
-// ===============================
 export function stopDetection(cameraRef){ if(cameraRef.current){ cameraRef.current.stop(); cameraRef.current=null; } }
 
-// ===============================
-// BACKEND
-// ===============================
 async function sendDetectionEvent({ blinkRate, ear, riskLevel, yawnDetected, totalBlinks, totalYawns, immediate=false }){
     try{
         await fetch(`${BACKEND_URL}/api/detection-event`,{
@@ -272,15 +265,4 @@ async function sendDetectionEvent({ blinkRate, ear, riskLevel, yawnDetected, tot
             })
         });
     }catch(err){ console.error('Error enviando evento:',err); }
-}
-
-// ===============================
-// RIESGO
-// ===============================
-function getRiskLevel(blinksPerMinute, closureDuration){
-    if(closureDuration>=1.5) return 'Alto'; // microsueño
-    if(blinksPerMinute<=20 && closureDuration<0.25) return 'Normal';
-    if(blinksPerMinute>20 && closureDuration<0.25) return 'Leve';
-    if(blinksPerMinute>20 && closureDuration>=0.25 && closureDuration<1) return 'Moderado';
-    return 'Moderado';
 }
