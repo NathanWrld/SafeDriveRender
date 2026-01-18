@@ -24,8 +24,10 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const MIN_BLINKS_NORMAL = 20;
     const MIN_CLOSURE_MODERATE = 0.4;
 
-    // FIX: persistencia mínima del riesgo moderado
     const MODERATE_PERSISTENCE_MS = 3000;
+
+    // FIX BOSTEZOS
+    const MIN_YAWN_DURATION_SEC = 0.8;
 
     // ===============================
     // ESTADO
@@ -47,9 +49,11 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let dynamicEARBaseline = null;
     let dynamicMARBaseline = 0.65;
 
-    // FIX: control de persistencia de riesgo
     let lastModerateTimestamp = 0;
     let microsleepTriggered = false;
+
+    // FIX BOSTEZOS
+    let yawnFrameCounter = 0;
 
     // ===============================
     // UTILIDADES
@@ -123,13 +127,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         const lm = results.multiFaceLandmarks[0];
 
-        if (isDev) {
-            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
-            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
-        }
-
         // ===============================
         // EAR / MAR
         // ===============================
@@ -141,24 +138,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const xs = lm.map(p => p.x * canvasElement.width);
         const faceWidthPx = Math.max(...xs) - Math.min(...xs);
         const earRel = faceWidthPx > 0 ? earPx / faceWidthPx : earPx;
-
-        // ===============================
-        // CALIBRACIÓN INICIAL
-        // ===============================
-        if (!initialCalibrationDone) {
-            if (earRel > 0) baselineSamples.push(earRel);
-            const remaining = BASELINE_FRAMES_INIT - baselineSamples.length;
-            estado.innerHTML = `<p>✅ Calibrando...</p><p>Frames restantes: ${Math.max(0, remaining)}</p>`;
-
-            if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
-                baselineEMA = median(baselineSamples) || 0.01;
-                dynamicEARBaseline = baselineEMA;
-                initialCalibrationDone = true;
-            }
-
-            if (isDev) canvasCtx.restore();
-            return;
-        }
 
         // ===============================
         // SUAVIZADO
@@ -175,9 +154,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         prevSmoothedEAR = smoothedEAR;
 
         // ===============================
-        // CALIBRACIÓN DINÁMICA
+        // CALIBRACIÓN DINÁMICA (FIX)
         // ===============================
-        if (smoothedEAR > 0) {
+        if (smoothedEAR > 0 && eyeState === 'open') {
             dynamicEARBaseline = EMA_ALPHA * smoothedEAR + (1 - EMA_ALPHA) * dynamicEARBaseline;
         }
 
@@ -195,27 +174,33 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         if (consideredClosed) {
             closedFrameCounter++;
-            if (eyeState === 'open' && closedFrameCounter >= CLOSED_FRAMES_THRESHOLD) {
-                eyeState = 'closed';
-            }
+            eyeState = 'closed';
         } else {
             if (eyeState === 'closed') {
                 blinkTimestamps.push(Date.now());
-                eyeState = 'open';
             }
             closedFrameCounter = 0;
-            microsleepTriggered = false; // FIX: reset seguro
+            eyeState = 'open';
+            microsleepTriggered = false;
         }
 
         // ===============================
-        // BOSTEZOS
+        // BOSTEZOS (FIX REAL)
         // ===============================
         let yawnDetected = false;
-        if (smoothedMAR > YAWN_THRESHOLD && mouthState === 'closed') {
-            yawnDetected = true;
-            yawnCount++;
-            mouthState = 'open';
-        } else if (smoothedMAR <= YAWN_THRESHOLD) {
+
+        if (smoothedMAR > YAWN_THRESHOLD) {
+            yawnFrameCounter++;
+            if (
+                yawnFrameCounter / FPS >= MIN_YAWN_DURATION_SEC &&
+                mouthState === 'closed'
+            ) {
+                yawnDetected = true;
+                yawnCount++;
+                mouthState = 'open';
+            }
+        } else {
+            yawnFrameCounter = 0;
             mouthState = 'closed';
         }
 
@@ -223,56 +208,37 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         // PARPADEOS ÚLTIMO MINUTO
         // ===============================
         const now = Date.now();
-        const oneMinuteAgo = now - 60000;
-        blinkTimestamps = blinkTimestamps.filter(ts => ts > oneMinuteAgo);
+        blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
         const totalBlinksLastMinute = blinkTimestamps.length;
 
         // ===============================
-        // NIVEL DE RIESGO (FIX TOTAL)
+        // NIVEL DE RIESGO (CORREGIDO)
         // ===============================
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS;
 
-        // FIX: MICROSUEÑO PRIORITARIO
-        if (closureDuration >= MICROSUEÑO_THRESHOLD && !microsleepTriggered) {
-            microsleepTriggered = true;
+        if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto';
 
-            sendDetectionEvent({
-                blinkRate: totalBlinksLastMinute,
-                ear: smoothedEAR,
-                riskLevel,
-                yawnDetected,
-                totalBlinks: totalBlinksLastMinute,
-                totalYawns: yawnCount,
-                immediate: true
-            });
-        }
-
-        // FIX: MODERADO CON PERSISTENCIA
-        if (riskLevel !== 'Alto') {
-            if (totalBlinksLastMinute > MIN_BLINKS_NORMAL && closureDuration >= MIN_CLOSURE_MODERATE) {
-                lastModerateTimestamp = now;
-                riskLevel = 'Moderado';
-            } else if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
-                riskLevel = 'Moderado';
-            } else if (totalBlinksLastMinute > MIN_BLINKS_NORMAL) {
-                riskLevel = 'Leve';
+            if (!microsleepTriggered) {
+                microsleepTriggered = true;
+                sendDetectionEvent({
+                    blinkRate: totalBlinksLastMinute,
+                    ear: smoothedEAR,
+                    riskLevel,
+                    yawnDetected,
+                    totalBlinks: totalBlinksLastMinute,
+                    totalYawns: yawnCount,
+                    immediate: true
+                });
             }
-        }
-
-        // ===============================
-        // ENVÍO NORMAL (~10s)
-        // ===============================
-        if (now % 10000 < 60) {
-            sendDetectionEvent({
-                blinkRate: totalBlinksLastMinute,
-                ear: smoothedEAR,
-                riskLevel,
-                yawnDetected,
-                totalBlinks: totalBlinksLastMinute,
-                totalYawns: yawnCount
-            });
+        } else if (totalBlinksLastMinute > MIN_BLINKS_NORMAL && closureDuration >= MIN_CLOSURE_MODERATE) {
+            riskLevel = 'Moderado';
+            lastModerateTimestamp = now;
+        } else if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
+            riskLevel = 'Moderado';
+        } else if (totalBlinksLastMinute > MIN_BLINKS_NORMAL) {
+            riskLevel = 'Leve';
         }
 
         estado.innerHTML = `
@@ -287,9 +253,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         if (isDev) canvasCtx.restore();
     });
 
-    // ===============================
-    // CÁMARA
-    // ===============================
     cameraRef.current = new Camera(videoElement, {
         onFrame: async () => await faceMesh.send({ image: videoElement }),
         width: 480,
