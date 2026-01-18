@@ -25,7 +25,7 @@ export function startDetection({
     const SMOOTHING_WINDOW = 5;
     const BASELINE_FRAMES_INIT = 60;
     const EMA_ALPHA = 0.03;
-    const EMA_ALPHA_DYNAMIC = 0.01; // calibración dinámica
+    const EMA_ALPHA_DYNAMIC = 0.01;
     const BASELINE_MULTIPLIER = 0.62;
     const CLOSED_FRAMES_THRESHOLD = 1;
     const MIN_TIME_BETWEEN_BLINKS = 150;
@@ -36,7 +36,7 @@ export function startDetection({
     // ===============================
     // ESTADO
     // ===============================
-    let blinkCount = 0;
+    let blinkCount = 0; // total de parpadeos en la ventana de 1 min
     let yawnCount = 0;
     let blinkStartTime = Date.now();
     let lastBlinkTime = 0;
@@ -241,16 +241,16 @@ export function startDetection({
         }
 
         // ===============================
-        // BPM Y RESET POR MINUTO
+        // CALCULAR BPM (parpadeos en 1 minuto)
         // ===============================
-        const elapsedMinutes = (Date.now() - blinkStartTime) / 60000;
-        const bpm = blinkCount / (elapsedMinutes || 1);
+        const now = Date.now();
+        const elapsedMinutes = (now - blinkStartTime) / 60000;
+        const bpm = blinkCount / (elapsedMinutes || 1); // total parpadeos en 1 min
 
         if (elapsedMinutes >= 1) {
-            blinkCount = 0;
-            yawnCount = 0;
-            closureDurations = [];
-            blinkStartTime = Date.now();
+            blinkCount = 0;       // reinicia para el siguiente minuto
+            closureDurations = []; 
+            blinkStartTime = now;
         }
 
         // ===============================
@@ -277,7 +277,6 @@ export function startDetection({
         // ===============================
         // ENVÍO AL BACKEND (~10s)
         // ===============================
-        const now = Date.now();
         if (now % 10000 < 60) {
             sendDetectionEvent({
                 blinkRate: bpm,
@@ -353,7 +352,7 @@ async function sendDetectionEvent({ blinkRate, ear, riskLevel, yawnDetected, tot
 function getRiskLevel(blinksPerMinute, avgClosureTime) {
     if (avgClosureTime >= 1.5) return 'Alto'; // microsueño
     if (blinksPerMinute <= 20 && avgClosureTime < 0.25) return 'Normal';
-    if (blinksPerMinute > 20 && avgClosureTime < 0.25) return 'Leve';
-    if (blinksPerMinute > 20 && avgClosureTime >= 0.25 && avgClosureTime < 1) return 'Moderado';
-    return 'Moderado'; // caso intermedio
+    if (blinksPerMinute > 20 && avgClosureTime < 0.25) return 'Leve'; // fatiga
+    if (blinksPerMinute > 20 && avgClosureTime >= 0.25 && avgClosureTime < 1) return 'Moderado'; // somnolencia
+    return 'Moderado';
 }
