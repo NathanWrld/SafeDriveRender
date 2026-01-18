@@ -24,10 +24,14 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const MIN_BLINKS_NORMAL = 20;
     const MIN_CLOSURE_MODERATE = 0.4;
 
+    // FIX: persistencia mínima del riesgo moderado
     const MODERATE_PERSISTENCE_MS = 3000;
 
     // FIX BOSTEZOS
-    const MIN_YAWN_DURATION_SEC = 0.8;
+    const MIN_YAWN_DURATION = 0.8; // segundos
+
+    // FIX MICROFLUCTUACIONES
+    const EYE_REOPEN_GRACE_FRAMES = 3;
 
     // ===============================
     // ESTADO
@@ -44,6 +48,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let eyeState = 'open';
     let mouthState = 'closed';
     let closedFrameCounter = 0;
+    let reopenGraceCounter = 0;
+
     let prevSmoothedEAR = 0;
 
     let dynamicEARBaseline = null;
@@ -140,11 +146,24 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const earRel = faceWidthPx > 0 ? earPx / faceWidthPx : earPx;
 
         // ===============================
+        // CALIBRACIÓN INICIAL
+        // ===============================
+        if (!initialCalibrationDone) {
+            if (earRel > 0) baselineSamples.push(earRel);
+            if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
+                baselineEMA = median(baselineSamples) || 0.01;
+                dynamicEARBaseline = baselineEMA;
+                initialCalibrationDone = true;
+            }
+            if (isDev) canvasCtx.restore();
+            return;
+        }
+
+        // ===============================
         // SUAVIZADO
         // ===============================
         earHistory.push(earRel);
         if (earHistory.length > SMOOTHING_WINDOW) earHistory.shift();
-
         mouthHistory.push(mar);
         if (mouthHistory.length > SMOOTHING_WINDOW) mouthHistory.shift();
 
@@ -168,31 +187,36 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const YAWN_THRESHOLD = dynamicMARBaseline * 1.3;
 
         // ===============================
-        // OJOS
+        // OJOS (FIX ROBUSTO)
         // ===============================
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
         if (consideredClosed) {
             closedFrameCounter++;
-            eyeState = 'closed';
-        } else {
-            if (eyeState === 'closed') {
-                blinkTimestamps.push(Date.now());
+            reopenGraceCounter = 0;
+            if (eyeState === 'open' && closedFrameCounter >= CLOSED_FRAMES_THRESHOLD) {
+                eyeState = 'closed';
             }
-            closedFrameCounter = 0;
-            eyeState = 'open';
-            microsleepTriggered = false;
+        } else {
+            reopenGraceCounter++;
+            if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
+                if (eyeState === 'closed') {
+                    blinkTimestamps.push(Date.now());
+                    eyeState = 'open';
+                }
+                closedFrameCounter = 0;
+                microsleepTriggered = false;
+            }
         }
 
         // ===============================
-        // BOSTEZOS (FIX REAL)
+        // BOSTEZOS (FIX TIEMPO)
         // ===============================
         let yawnDetected = false;
-
         if (smoothedMAR > YAWN_THRESHOLD) {
             yawnFrameCounter++;
             if (
-                yawnFrameCounter / FPS >= MIN_YAWN_DURATION_SEC &&
+                yawnFrameCounter / FPS >= MIN_YAWN_DURATION &&
                 mouthState === 'closed'
             ) {
                 yawnDetected = true;
@@ -212,14 +236,13 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const totalBlinksLastMinute = blinkTimestamps.length;
 
         // ===============================
-        // NIVEL DE RIESGO (CORREGIDO)
+        // NIVEL DE RIESGO (FIX DEFINITIVO)
         // ===============================
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS;
 
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto';
-
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
                 sendDetectionEvent({
@@ -232,7 +255,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     immediate: true
                 });
             }
-        } else if (totalBlinksLastMinute > MIN_BLINKS_NORMAL && closureDuration >= MIN_CLOSURE_MODERATE) {
+        } else if (closureDuration >= MIN_CLOSURE_MODERATE) {
             riskLevel = 'Moderado';
             lastModerateTimestamp = now;
         } else if (now - lastModerateTimestamp < MODERATE_PERSISTENCE_MS) {
@@ -241,8 +264,21 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             riskLevel = 'Leve';
         }
 
+        // ===============================
+        // ENVÍO NORMAL (~10s)
+        // ===============================
+        if (now % 10000 < 60) {
+            sendDetectionEvent({
+                blinkRate: totalBlinksLastMinute,
+                ear: smoothedEAR,
+                riskLevel,
+                yawnDetected,
+                totalBlinks: totalBlinksLastMinute,
+                totalYawns: yawnCount
+            });
+        }
+
         estado.innerHTML = `
-            <p>✅ Rostro detectado</p>
             <p>Parpadeos último minuto: ${totalBlinksLastMinute}</p>
             <p>Bostezos: ${yawnCount}</p>
             <p>EAR: ${smoothedEAR.toFixed(6)}</p>
