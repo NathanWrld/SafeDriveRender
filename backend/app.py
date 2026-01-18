@@ -13,12 +13,22 @@ import torch.optim as optim
 from torchvision import transforms
 
 import mediapipe as mp
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 # =====================================================
 # 1. FastAPI app
 # =====================================================
 app = FastAPI()
+
+# ===================== CORS (OBLIGATORIO) =====================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # luego puedes limitar
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # =====================================================
 # 2. Modelo CNN ligero
@@ -58,14 +68,14 @@ transform = transforms.Compose([
 ])
 
 # =====================================================
-# 3. MediaPipe (sin FaceMesh, solo placeholder)
+# 3. MediaPipe (placeholder)
 # =====================================================
 print("MediaPipe instalado sin soporte FaceMesh (Render / Py3.13)")
 
 # =====================================================
 # 4. Aprendizaje incremental
 # =====================================================
-train_buffer = deque(maxlen=100)
+train_buffer = deque(maxlen=200)
 
 def fine_tune_model():
     if len(train_buffer) < 10:
@@ -88,12 +98,6 @@ def base64_to_image(b64):
     img = Image.open(BytesIO(base64.b64decode(b64))).convert("RGB")
     return np.array(img)
 
-def extract_roi(image, landmarks, idxs):
-    h, w, _ = image.shape
-    xs = [int(landmarks[i].x * w) for i in idxs]
-    ys = [int(landmarks[i].y * h) for i in idxs]
-    return image[min(ys):max(ys), min(xs):max(xs)]
-
 def predict(roi):
     if roi is None or roi.size == 0:
         return None
@@ -103,14 +107,31 @@ def predict(roi):
         return torch.argmax(model(img_t), dim=1).item()
 
 # =====================================================
-# 6. Endpoint HTTP de prueba
+# 6. Endpoint HTTP base
 # =====================================================
 @app.get("/")
 async def root():
     return {"status": "Backend activo"}
 
 # =====================================================
-# 7. WebSocket FastAPI
+# 7. Endpoint que FALTABA (FRONTEND → BACKEND)
+# =====================================================
+@app.post("/api/detection-event")
+async def detection_event(data: dict):
+    """
+    Aquí llegan los datos desde detection.js
+    """
+    print("📥 Evento recibido:", data)
+
+    # Punto ideal para:
+    # - guardar en BD
+    # - ajustar umbrales
+    # - activar aprendizaje futuro
+
+    return {"status": "ok"}
+
+# =====================================================
+# 8. WebSocket FastAPI (aprendizaje incremental)
 # =====================================================
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
@@ -121,22 +142,17 @@ async def websocket_endpoint(ws: WebSocket):
             frame = base64_to_image(data["frame"])
             feedback = data.get("feedback")
 
-            # Placeholder landmarks vacíos (MediaPipe FaceMesh no disponible)
-            results = None
-
             response = {"left": None, "right": None, "mouth": None}
 
-            # Aquí normalmente procesarías landmarks, pero en Render Py3.13 FaceMesh no funciona
-            # Así que solo devolvemos None (o mock) hasta que uses otra librería compatible
-
             if feedback:
-                # Mock de entrenamiento incremental con la propia imagen (sin ROI real)
                 for key in ["left", "right", "mouth"]:
                     if key in feedback:
-                        train_buffer.append((Image.fromarray(frame), feedback[key]))
+                        train_buffer.append(
+                            (Image.fromarray(frame), feedback[key])
+                        )
                 fine_tune_model()
 
             await ws.send_text(json.dumps(response))
 
     except WebSocketDisconnect:
-        print("Cliente desconectado")
+        print("🔌 Cliente desconectado")
