@@ -225,6 +225,23 @@
     </div>
 </div>
 
+
+<audio id="alarmSound" loop preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+</audio>
+
+<audio id="notifySound" preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2344/2344-preview.mp3" type="audio/mpeg">
+</audio>
+
+<div id="warningPopup" class="warning-popup">
+    <div class="warning-content">
+        <h3>⚠️ Precaución</h3>
+        <p>Se detectan signos de somnolencia.</p>
+        <p>Intente parpadear o refrescarse.</p>
+    </div>
+</div>
+
 <script>
     // Navegación entre módulos
     const menuBtns = document.querySelectorAll('.menu-btn');
@@ -301,11 +318,6 @@
         }
     });
 </script>
-
-<audio id="alarmSound" loop preload="auto">
-    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-</audio>
-
 <script type="module" src="script.js"></script>
 <script src="burger-btn.js"></script>
 

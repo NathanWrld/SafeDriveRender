@@ -522,3 +522,41 @@ canvas {
 #prevPage svg {
   transform: scale(-1);
 }
+
+/* ==========================================================================
+   POP-UP PREVENTIVO (MODERADO)
+   ========================================================================== */
+.warning-popup {
+    position: fixed;
+    top: 20px; /* Aparece arriba para que se vea fácil */
+    left: 50%;
+    transform: translateX(-50%) translateY(-150%); /* Oculto por defecto hacia arriba */
+    background: #f59e0b; /* Naranja precuación */
+    color: #fff;
+    padding: 20px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 2000;
+    text-align: center;
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    width: 80%;
+    max-width: 400px;
+    border: 2px solid #fff;
+}
+
+.warning-popup.active {
+    transform: translateX(-50%) translateY(0); /* Entra a la pantalla */
+}
+
+.warning-content h3 {
+    margin: 0 0 10px 0;
+    font-size: 24px;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.warning-content p {
+    margin: 5px 0;
+    font-size: 18px;
+    font-weight: 600;
+}
