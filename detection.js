@@ -155,7 +155,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 dynamicEARBaseline = baselineEMA;
                 initialCalibrationDone = true;
             }
-            if (isDev) canvasCtx.restore();
+            // NO RESTAURAR AQUÍ
             return;
         }
 
@@ -265,6 +265,17 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         }
 
         // ===============================
+        // DIBUJO DE MALLA PARA DEVS
+        // ===============================
+        if (isDev) {
+            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
+            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
+            canvasCtx.restore(); // SOLO AQUÍ
+        }
+
+        // ===============================
         // ENVÍO NORMAL (~10s)
         // ===============================
         if (now % 10000 < 60) {
@@ -285,8 +296,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             <p>MAR: ${smoothedMAR.toFixed(3)}</p>
             <p>Riesgo: ${riskLevel}</p>
         `;
-
-        if (isDev) canvasCtx.restore();
     });
 
     cameraRef.current = new Camera(videoElement, {
