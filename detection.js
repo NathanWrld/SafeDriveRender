@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN: Registro de 'Leve' en Historial
+// VERSIÓN: Fatiga generalizada y unidades corregidas
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -180,7 +180,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
         // =========================================================================
-        // ANÁLISIS 60s (AQUÍ SE DEFINEN LAS VARIABLES)
+        // ANÁLISIS 60s (VARIABLES DEFINIDAS AQUÍ PARA EVITAR CRASH)
         // =========================================================================
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
@@ -208,6 +208,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 eyeState = 'closed';
             }
         } else {
+            // El usuario está abriendo los ojos
             reopenGraceCounter++;
             
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
@@ -256,7 +257,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             }
         }
 
-        // --- GESTIÓN DE RIESGO Y ALARMAS ---
+        // --- GESTIÓN DE RIESGO ---
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS; 
         const popupContent = document.getElementById('popupTextContent');
@@ -326,7 +327,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             lastModerateTimestamp = now;
         } 
 
-        // C. LEVE (NUEVO: Aquí definimos el umbral)
+        // C. LEVE (Umbral de prueba: 20 parpadeos)
         else {
             if (totalBlinksLastMinute > 20) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
@@ -375,9 +376,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 totalYawns: yawnCountTotal
             });
 
-            // 2. NUEVO: Si es 'Leve', también lo guardamos en ALERTAS para que salga en el historial
+            // 2. Si es 'Leve', también lo guardamos en ALERTAS
             if (riskLevel === 'Leve') {
-                console.log("📝 Registrando Fatiga Leve en historial...");
                 sendDetectionEvent({
                     type: 'ALERTA',
                     sessionId,
@@ -391,11 +391,17 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             lastCaptureMinute = currentMinute;
         }
 
+        // Color condicional en el texto de estado
+        let colorEstado = '#4ade80'; 
+        if (riskLevel === 'Leve') colorEstado = '#facc15'; 
+        if (riskLevel === 'Moderado') colorEstado = '#fbbf24'; 
+        if (riskLevel === 'Alto riesgo') colorEstado = '#ef4444'; 
+
         estado.innerHTML = `
             <p style="font-size:14px">Parpadeos/min: ${totalBlinksLastMinute}</p>
             <p style="font-size:14px">P. Lentos (1min): ${recentSlowBlinks} (Min: 3)</p>
             <p style="font-size:14px">Bostezos (1min): ${recentYawns} (Min: 2)</p>
-            <p style="font-weight:bold; color:${riskLevel === 'Normal' ? '#4ade80' : riskLevel === 'Leve' ? '#facc15' : riskLevel === 'Moderado' ? '#fbbf24' : '#ef4444'}">Estado: ${riskLevel}</p>
+            <p style="font-weight:bold; color:${colorEstado}">Estado: ${riskLevel}</p>
         `;
     });
 
@@ -449,7 +455,7 @@ async function sendDetectionEvent({
         if (type === 'CAPTURA') {
             const { error } = await supabase.from('Capturas').insert([captureData]);
             if (error) console.error('Error guardando Captura:', error.message);
-            else console.log(`💾 Captura periódica guardada (${riskLevel})`);
+            else console.log(`💾 Captura guardada (${riskLevel})`);
         } 
         
         else if (type === 'ALERTA') {
@@ -466,7 +472,6 @@ async function sendDetectionEvent({
 
             const relatedCaptureId = snapshotData[0].id_captura;
 
-            // Lógica de Causas para la Base de Datos
             let causa = "Fatiga General";
             let valor = probabilidad;
 
@@ -482,10 +487,10 @@ async function sendDetectionEvent({
                 causa = "Somnolencia"; 
                 valor = parseFloat(slowBlinks); 
             }
-            // NUEVO: Caso específico para LEVE
+            // CAMBIO AQUI: Fatiga y valor = blinkRate
             else if (riskLevel === 'Leve') {
-                causa = "Fatiga Ocular"; // Nombre que aparecerá en historial
-                valor = parseFloat(blinkRate); // Valor: cantidad de parpadeos
+                causa = "Fatiga"; 
+                valor = parseFloat(blinkRate); 
             }
 
             const { error: alertError } = await supabase.from('Alertas').insert([{

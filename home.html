@@ -110,15 +110,15 @@
                             <option value="">Todas</option>
                             <option value="Microsueño">Microsueño</option>
                             <option value="Bostezos">Bostezos</option>
-                            <option value="Somnolencia">Somnolencia</option> <option value="Fatiga General">Fatiga General</option>
-                        </select>
+                            <option value="Somnolencia">Somnolencia</option> 
+                            <option value="Fatiga">Fatiga</option> </select>
                     </div>
 
                     <div class="filter-item">
                         <label for="filterLevel">Nivel:</label>
                         <select id="filterLevel">
                             <option value="">Todos</option>
-                            <option value="Moderado">Moderado</option>
+                            <option value="Leve">Leve</option> <option value="Moderado">Moderado</option>
                             <option value="Alto riesgo">Alto riesgo</option>
                         </select>
                     </div>
@@ -263,7 +263,7 @@
         if (fLevel) query = query.eq('nivel_riesgo', fLevel);
         
         if (fType) {
-            // Buscamos tal cual en la BD (ahora ya se guarda como "Somnolencia")
+            // Buscamos tal cual en la BD
             query = query.ilike('causa_detonante', `%${fType}%`);
         }
 
@@ -308,17 +308,19 @@
             if (alerta.nivel_riesgo === 'Moderado') levelClass = 'level-moderado';
             if (alerta.nivel_riesgo === 'Leve') levelClass = 'level-leve';
 
-            // --- VISUALIZACIÓN SIMPLIFICADA ---
+            // --- VISUALIZACIÓN ---
             let causaMostrar = alerta.causa_detonante || 'Desconocida';
             let valorDisplay = alerta.valor_medido ? alerta.valor_medido.toString() : '-';
 
-            // Agregamos unidades según la causa (ya correcta desde la BD)
+            // Agregamos unidades según la causa
             if (causaMostrar.includes("Somnolencia")) {
                 valorDisplay += " eventos"; 
             } else if (causaMostrar.includes("Microsueño")) {
                 valorDisplay += " seg";
             } else if (causaMostrar.includes("Bostezos")) {
                 valorDisplay += " veces";
+            } else if (causaMostrar.includes("Fatiga")) {
+                valorDisplay += " parpadeos/min";
             }
 
             row.innerHTML = `
