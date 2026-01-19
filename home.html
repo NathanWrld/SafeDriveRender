@@ -1,3 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard – Sistema de Detección de Astenia</title>
+<link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+<header class="top-header">
+    <div class="header-left">
+        <img src="logo.png" alt="Logo" class="logo">
+        <div class="burger" id="burgerBtn">☰</div>
+    </div>
+</header>
+
+<div class="content">
+    <div id="overlay" class="overlay"></div>
+
+    <div class="sidebar" id="sidebar">
+        <h2>Panel Principal</h2>
+        <a class="menu-btn active" data-target="inicio">Inicio</a>
+        <a class="menu-btn" data-target="deteccion">Detección en Tiempo Real</a>
+        <a class="menu-btn" data-target="usuarios">Gestión de Usuario</a>
+        <a class="menu-btn" data-target="historial">Historial</a>
+        <a href="#" id="logoutBtn">Cerrar Sesión</a>
+    </div>
+
+    <div id="closeSidebar" class="close-sidebar">✕</div>
+
+    <div class="main normal-container">
+        
+        <section id="inicio" class="card">
+            <h2>Tendencia Mensual de Conducción</h2>
+            <div class="chart-container">
+                <div class="chart-scroll-wrapper">
+                    <canvas id="fatigueChart"></canvas> 
+                </div>
+            </div>
+            <p>Evolución de los minutos acumulados por estado en los últimos 30 días.</p>
+            <div id="chartLegendInfo" style="margin-top:10px; font-size: 0.9em; color: #cbd5e1;">
+                <p>💡 <strong>Guía:</strong> 
+                <span style="color:#10b981">● Normal</span> (Conducción segura), 
+                <span style="color:#facc15">● Fatiga Leve</span> (Cansancio ocular), 
+                <span style="color:#f97316">● Somnolencia</span> (Peligro moderado), 
+                <span style="color:#ef4444">● Microsueño</span> (Peligro crítico).</p>
+            </div>
+        </section>
+
+
+        <section id="deteccion" class="card" style="display:none;">
+            <h2>Detección en Tiempo Real</h2>
+            <div class="cam-container" id="camFeed">
+                <video id="camaraNormal" class="input_video" autoplay playsinline style="display:none;"></video>
+                <canvas id="camaraAvanzada" class="output_canvas"></canvas>
+            </div>
+            <div class="btn-detection-container">
+                <div id="estado">
+                    <p>Presiona "Iniciar Detección" para comenzar.</p>
+                </div>
+                <button id="startDetection" class="primary-button">Iniciar Detección</button>
+                <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
+            </div>
+        </section>
+
+
+        <section id="usuarios" class="card" style="display:none;">
+            <h2 style="margin-bottom:20px; text-align:center;">Mi Perfil</h2>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="userName">Nombre:</label>
+                    <input type="text" id="userName" name="userName" required>
+                </div>
+                <div class="form-group">
+                    <label for="userEmail">Email:</label>
+                    <input type="email" id="userEmail" name="userEmail" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Nueva Contraseña:</label>
+                    <input type="password" id="newPassword" name="newPassword" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="repeatPassword">Repetir Contraseña:</label>
+                    <input type="password" id="repeatPassword" name="repeatPassword">
+                </div>
+                <div class="form-group">
+                    <label for="currentPassword">Contraseña Actual:</label>
+                    <input type="password" id="currentPassword" name="currentPassword" required autocomplete="current-password">
+                </div>
+                <div id="profileMessage"></div>
+                <button type="submit" class="primary-button">Guardar Cambios</button>
+            </form>
+        </section>
+
+
+       <section id="historial" class="card" style="display:none;">
+            <h2>Historial de Alertas</h2>
+
+            <div class="history-filters">
+                <div class="filter-wrapper">
+                    <div class="filter-item">
+                        <label for="filterDate">Fecha:</label>
+                        <input type="date" id="filterDate">
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filterType">Causa:</label>
+                        <select id="filterType">
+                            <option value="">Todas</option>
+                            <option value="Microsueño">Microsueño</option>
+                            <option value="Bostezos">Bostezos</option>
+                            <option value="Somnolencia">Somnolencia</option> 
+                            <option value="Fatiga">Fatiga</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filterLevel">Nivel:</label>
+                        <select id="filterLevel">
+                            <option value="">Todos</option>
+                            <option value="Leve">Leve</option>
+                            <option value="Moderado">Moderado</option>
+                            <option value="Alto riesgo">Alto riesgo</option>
+                        </select>
+                    </div>
+
+                    <button id="applyFilters" class="primary-button">Filtrar</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Causa Detectada</th>
+                            <th>Nivel de Riesgo</th>
+                            <th>Valor Medido</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable">
+                        <tr><td colspan="4" style="text-align:center;">Cargando datos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button class="page-btn" id="prevPage">
+                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <span id="pageInfo">Página 1</span>
+                <button class="page-btn" id="nextPage">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<audio id="alarmSound" loop preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+</audio>
+<audio id="notifySound" preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2344/2344-preview.mp3" type="audio/mpeg">
+</audio>
+<div id="warningPopup" class="warning-popup alert-orange">
+    <div class="warning-content" id="popupTextContent"></div>
+</div>
+
+<script type="module" src="script.js"></script>
+<script src="burger-btn.js"></script>
+
 <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -328,3 +508,6 @@
 
     initDashboard();
 </script>
+
+</body>
+</html>
