@@ -38,15 +38,19 @@
     <div class="main normal-container">
         
         <section id="inicio" class="card">
-            <h2>Resumen Mensual de Conducción</h2>
+            <h2>Tendencia Mensual de Conducción</h2>
             <div class="chart-container">
                 <div class="chart-scroll-wrapper">
                     <canvas id="fatigueChart"></canvas> 
                 </div>
             </div>
-            <p>Visualización de los minutos acumulados por nivel de riesgo en los últimos 30 días.</p>
+            <p>Evolución de los minutos acumulados por estado en los últimos 30 días.</p>
             <div id="chartLegendInfo" style="margin-top:10px; font-size: 0.9em; color: #cbd5e1;">
-                <p>💡 <strong>Nota:</strong> Las barras verdes indican tiempo de conducción segura. Las barras de color (amarillo, naranja, rojo) indican momentos de fatiga detectada.</p>
+                <p>💡 <strong>Guía:</strong> 
+                <span style="color:#10b981">● Normal</span> (Conducción segura), 
+                <span style="color:#facc15">● Fatiga Leve</span> (Cansancio ocular), 
+                <span style="color:#f97316">● Somnolencia</span> (Peligro moderado), 
+                <span style="color:#ef4444">● Microsueño</span> (Peligro crítico).</p>
             </div>
         </section>
 
@@ -196,7 +200,6 @@
     // Navegación Sidebar (Recargar gráfico al volver a Inicio)
     document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
         const chartCanvas = document.getElementById('fatigueChart');
-        // Pequeño hack para forzar redibujado si cambia el tamaño
         if(myChart) myChart.resize(); 
         initDashboard();
     });
@@ -221,7 +224,6 @@
         }
 
         // 3. Obtener CAPTURAS (No alertas) de los últimos 30 días
-        // Solo traemos fecha y nivel de riesgo para no saturar la red
         const { data: capturas, error } = await supabase
             .from('Capturas')
             .select('hora_captura, nivel_riesgo_calculado')
@@ -238,12 +240,12 @@
     }
 
     function processAndRenderChart(capturas, startDate, endDate) {
-        // Estructura de datos: { "2023-10-01": { Normal: 10, Leve: 2... }, "2023-10-02": ... }
+        // Estructura de datos: { "2023-10-01": { Normal: 10, Leve: 2... }, ... }
         const dailyStats = {};
         
-        // Inicializar los últimos 30 días en 0 (para que el gráfico no tenga huecos)
+        // Inicializar los últimos 30 días en 0
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dateStr = d.toISOString().split('T')[0];
             dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0 };
         }
 
@@ -252,18 +254,14 @@
             const dateStr = c.hora_captura.split('T')[0];
             if (dailyStats[dateStr]) {
                 let nivel = c.nivel_riesgo_calculado || 'Normal';
-                if (nivel === 'Alto riesgo') nivel = 'Alto'; // Simplificar key
-                
-                // Normalización de nombres por si acaso
                 if (nivel === 'Alto riesgo') nivel = 'Alto';
-                
                 if (dailyStats[dateStr][nivel] !== undefined) {
                     dailyStats[dateStr][nivel]++;
                 }
             }
         });
 
-        // Preparar arrays para Chart.js
+        // Preparar arrays
         const labels = Object.keys(dailyStats);
         const dataNormal = labels.map(date => dailyStats[date].Normal);
         const dataLeve = labels.map(date => dailyStats[date].Leve);
@@ -277,51 +275,69 @@
         const ctx = document.getElementById('fatigueChart').getContext('2d');
 
         if (myChart) {
-            myChart.destroy(); // Destruir anterior para no sobreescribir
+            myChart.destroy();
         }
 
         myChart = new Chart(ctx, {
-            type: 'bar', // Cambiamos a BARRA APILADA para ver proporciones
+            type: 'line', // <--- CAMBIO: Gráfico de Líneas
             data: {
-                labels: labels, // Fechas
+                labels: labels,
                 datasets: [
                     {
                         label: 'Normal (Minutos)',
                         data: dNormal,
-                        backgroundColor: '#10b981', // Verde
-                        stack: 'Stack 0',
+                        borderColor: '#10b981', // Verde
+                        backgroundColor: '#10b981', 
+                        tension: 0.4, // Curvas suaves
+                        pointRadius: 4, // Puntos visibles
+                        borderWidth: 2,
+                        fill: false
                     },
                     {
                         label: 'Fatiga Leve (Minutos)',
                         data: dLeve,
-                        backgroundColor: '#facc15', // Amarillo
-                        stack: 'Stack 0',
+                        borderColor: '#facc15', // Amarillo
+                        backgroundColor: '#facc15',
+                        tension: 0.4,
+                        pointRadius: 4,
+                        borderWidth: 2,
+                        fill: false
                     },
                     {
-                        label: 'Riesgo Moderado (Minutos)',
+                        label: 'Somnolencia (Minutos)', // <--- NUEVO NOMBRE
                         data: dModerado,
-                        backgroundColor: '#f97316', // Naranja
-                        stack: 'Stack 0',
+                        borderColor: '#f97316', // Naranja
+                        backgroundColor: '#f97316',
+                        tension: 0.4,
+                        pointRadius: 4,
+                        borderWidth: 2,
+                        fill: false
                     },
                     {
-                        label: 'Alto Riesgo (Minutos)',
+                        label: 'Microsueño (Minutos)', // <--- NUEVO NOMBRE
                         data: dAlto,
-                        backgroundColor: '#ef4444', // Rojo
-                        stack: 'Stack 0',
+                        borderColor: '#ef4444', // Rojo
+                        backgroundColor: '#ef4444',
+                        tension: 0.4,
+                        pointRadius: 4,
+                        borderWidth: 2,
+                        fill: false
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
                     x: {
-                        stacked: true,
                         ticks: { color: '#cbd5e1' },
                         grid: { color: '#334155' }
                     },
                     y: {
-                        stacked: true,
                         beginAtZero: true,
                         ticks: { color: '#cbd5e1' },
                         grid: { color: '#334155' },
@@ -334,7 +350,7 @@
                 },
                 plugins: {
                     legend: {
-                        labels: { color: '#fff' }
+                        labels: { color: '#fff', usePointStyle: true }
                     },
                     tooltip: {
                         mode: 'index',
@@ -350,16 +366,16 @@
         if (myChart) myChart.destroy();
         
         myChart = new Chart(ctx, {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: ['Sin datos'],
-                datasets: [{ label: 'Sin actividad', data: [0], backgroundColor: '#334155' }]
+                datasets: [{ label: 'Sin actividad', data: [0], borderColor: '#334155' }]
             },
             options: { responsive: true, plugins: { legend: { display: false } } }
         });
     }
 
-    // Lógica del Historial (Mantenida del paso anterior)
+    // Lógica del Historial (Sin cambios, solo mantenida)
     const tableBody = document.getElementById('historyTable');
     const prevBtn = document.getElementById('prevPage');
     const nextBtn = document.getElementById('nextPage');
@@ -378,7 +394,6 @@
         }
     }
 
-    // Funciones del Historial (Ya corregidas previamente)
     btnFilter.addEventListener('click', () => fetchHistory(1));
     prevBtn.addEventListener('click', () => { if(currentPage > 1) fetchHistory(currentPage - 1); });
     nextBtn.addEventListener('click', () => fetchHistory(currentPage + 1));
@@ -447,7 +462,6 @@
         nextBtn.style.opacity = currentPage >= totalPages ? "0.5" : "1";
     }
 
-    // Navegación Sidebar
     const menuBtns = document.querySelectorAll('.menu-btn');
     menuBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -459,7 +473,6 @@
         });
     });
 
-    // Arrancar todo
     initAll();
 </script>
 
