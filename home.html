@@ -289,6 +289,7 @@
 
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
+
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
@@ -299,69 +300,96 @@
                     {
                         label: 'Normal (%)',
                         data: dNormal,
-                        borderColor: '#10b981', 
-                        backgroundColor: 'rgba(16, 185, 129, 0.6)', 
-                        borderWidth: 0, 
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 0 
+                        borderColor: '#10b981', // Verde Original
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)', // Fondo muy sutil
+                        borderWidth: 2,
+                        tension: 0.4, // Curvas suaves
+                        pointRadius: 4, // Puntos visibles
+                        pointBackgroundColor: '#10b981',
+                        fill: true 
                     },
                     {
-                        label: 'Fatiga Leve (%)',
+                        label: 'Fatiga (%)',
                         data: dLeve,
-                        borderColor: '#facc15', 
-                        backgroundColor: 'rgba(250, 204, 21, 0.8)',
-                        borderWidth: 1,
+                        borderColor: '#facc15', // Amarillo Original
+                        backgroundColor: 'rgba(250, 204, 21, 0.2)',
+                        borderWidth: 2,
                         tension: 0.4,
-                        fill: true,
-                        pointRadius: 3
+                        pointRadius: 4,
+                        pointBackgroundColor: '#facc15',
+                        fill: true
                     },
                     {
                         label: 'Somnolencia (%)',
                         data: dModerado,
-                        borderColor: '#f97316', 
-                        backgroundColor: 'rgba(249, 115, 22, 0.9)',
-                        borderWidth: 1,
+                        borderColor: '#f97316', // Naranja Original
+                        backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                        borderWidth: 2,
                         tension: 0.4,
-                        fill: true,
-                        pointRadius: 4
+                        pointRadius: 4,
+                        pointBackgroundColor: '#f97316',
+                        fill: true
                     },
                     {
                         label: 'Microsueño (%)',
                         data: dAlto,
-                        borderColor: '#ef4444', 
-                        backgroundColor: 'rgba(239, 68, 68, 1)',
-                        borderWidth: 1,
+                        borderColor: '#ef4444', // Rojo Original
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        borderWidth: 2,
                         tension: 0.4,
-                        fill: true,
-                        pointRadius: 5
+                        pointRadius: 4,
+                        pointBackgroundColor: '#ef4444',
+                        fill: true
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
-                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155', drawBorder: false }
+                    },
                     y: {
-                        stacked: true, // APILADO
                         beginAtZero: true,
-                        max: 100, 
-                        ticks: { color: '#94a3b8', callback: v => v + "%" },
-                        grid: { color: '#334155' },
-                        title: { display: true, text: 'Distribución del Tiempo', color: '#cbd5e1' }
+                        max: 100, // Mantiene la escala 0-100%
+                        stacked: false, // <--- IMPORTANTE: Desactivado el apilado feo
+                        ticks: { 
+                            color: '#94a3b8',
+                            callback: function(value) { return value + "%" } 
+                        },
+                        grid: { color: '#334155', drawBorder: false },
+                        title: {
+                            display: true,
+                            text: 'Porcentaje de Tiempo de Viaje',
+                            color: '#cbd5e1'
+                        }
                     }
                 },
                 plugins: {
-                    legend: { labels: { color: '#fff', usePointStyle: true } },
+                    legend: {
+                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 }
+                    },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) label = label.replace(' (%)', '') + ': ';
-                                if (context.parsed.y !== null) label += context.parsed.y.toFixed(1) + '%';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + '%';
+                                }
                                 return label;
                             }
                         }
