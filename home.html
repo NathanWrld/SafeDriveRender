@@ -40,6 +40,8 @@
         <section id="inicio" class="card">
             <h2>Tendencia Mensual de Conducción</h2>
             <div class="chart-container">
+                <div id="customLegend" class="chart-legend-html"></div>
+
                 <div class="chart-scroll-wrapper">
                     <canvas id="fatigueChart"></canvas> 
                 </div>
@@ -289,12 +291,11 @@
 
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
-        
-        // Detectar si es móvil
         const isMobile = window.innerWidth < 768;
 
         if (myChart) myChart.destroy();
 
+        // 1. CREAR GRÁFICA (Sin leyenda interna)
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -305,11 +306,11 @@
                         data: dNormal,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: isMobile ? 1.5 : 2,
+                        borderWidth: 2,
                         tension: 0.4,
-                        pointRadius: 0, 
-                        pointHitRadius: 50, // <--- CAMPO DE DETECCIÓN GIGANTE
-                        pointHoverRadius: 4, 
+                        pointRadius: 3, 
+                        pointHoverRadius: 6,
+                        pointHitRadius: 30, // Facilita tocar el punto
                         fill: true 
                     },
                     {
@@ -317,10 +318,11 @@
                         data: dLeve,
                         borderColor: '#facc15',
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
+                        borderWidth: 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 50, // <--- FACILITA EL CLICK
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointHitRadius: 30,
                         fill: true
                     },
                     {
@@ -328,10 +330,11 @@
                         data: dModerado,
                         borderColor: '#f97316',
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
+                        borderWidth: 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 50, // <--- FACILITA EL CLICK
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointHitRadius: 30,
                         fill: true
                     },
                     {
@@ -339,10 +342,11 @@
                         data: dAlto,
                         borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
+                        borderWidth: 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 50, // <--- FACILITA EL CLICK
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointHitRadius: 30,
                         fill: true
                     }
                 ]
@@ -351,29 +355,23 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 resizeDelay: 200,
-                
-                // MEJORA DE INTERACCIÓN TÁCTIL
                 interaction: {
-                    mode: 'index',     
-                    intersect: false,  // CRUCIAL: No obliga a tocar el punto exacto
-                    axis: 'x'          // Permite deslizar el dedo horizontalmente
+                    mode: 'index',
+                    intersect: false, // Permite tocar la línea vertical, no solo el punto
+                    axis: 'x'
                 },
-
-                layout: {
-                    padding: { top: 5, left: 0, right: 10, bottom: 0 }
-                },
+                layout: { padding: { top: 10, left: 0, right: 10, bottom: 0 } },
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
-                            font: { size: isMobile ? 10 : 11 }, // Letra pequeña en eje X
+                            font: { size: 11 },
                             maxRotation: 0, 
-                            minRotation: 0,
-                            autoSkip: true, // <--- REGRESAMOS A OCULTAR DÍAS PARA LIMPIEZA
-                            maxTicksLimit: isMobile ? 8 : 20, // Muestra máximo 8 fechas en móvil
-                            callback: function(val, index) {
+                            autoSkip: true, // Limpia el eje X
+                            maxTicksLimit: isMobile ? 8 : 15,
+                            callback: function(val) {
                                 const label = this.getLabelForValue(val);
-                                return isMobile ? label.split('-')[2] : label; 
+                                return isMobile ? label.split('-')[2] : label;
                             }
                         },
                         grid: { color: '#334155', drawBorder: false }
@@ -381,44 +379,18 @@
                     y: {
                         beginAtZero: true,
                         max: 100,
-                        stacked: false,
-                        ticks: { 
-                            color: '#94a3b8',
-                            font: { size: 9 }, // Letra pequeña en eje Y
-                            callback: v => v + "%",
-                            maxTicksLimit: 5 
-                        },
+                        ticks: { color: '#94a3b8', callback: v => v + "%", maxTicksLimit: 6 },
                         grid: { color: '#334155', drawBorder: false },
-                        title: { display: !isMobile, text: 'Tiempo de Viaje', color: '#cbd5e1' }
+                        title: { display: !isMobile, text: 'Tiempo (%)', color: '#cbd5e1' }
                     }
                 },
                 plugins: {
                     legend: {
-                        // AQUÍ ARREGLAMOS LOS BOTONES DE ARRIBA
-                        labels: { 
-                            color: '#fff', 
-                            usePointStyle: true, 
-                            boxWidth: 8,    // Icono pequeño
-                            font: { size: 10 }, // <--- FUENTE PEQUEÑA REAL
-                            padding: 25     // <--- MUCHA SEPARACIÓN (Evita clicks erróneos)
-                        },
-                        onClick: function(e, legendItem, legend) {
-                            const index = legendItem.datasetIndex;
-                            const ci = legend.chart;
-                            if (ci.isDatasetVisible(index)) {
-                                ci.hide(index);
-                                legendItem.hidden = true;
-                            } else {
-                                ci.show(index);
-                                legendItem.hidden = false;
-                            }
-                        }
+                        display: false // <--- APAGAMOS LA LEYENDA INTERNA (Culpable del error)
                     },
                     title: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        titleFont: { size: 12 },
-                        bodyFont: { size: 12 },
                         padding: 10,
                         cornerRadius: 6,
                         displayColors: true,
@@ -434,7 +406,10 @@
             }
         });
 
-        // Auto-scroll inicial a la derecha (Solo si hay scrollbar visible)
+        // 2. GENERAR LEYENDA HTML PERSONALIZADA (Botones Reales)
+        generateHtmlLegend(myChart);
+
+        // 3. AUTO-SCROLL EN MÓVIL
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
@@ -443,6 +418,45 @@
                 }
             }, 100);
         }
+    }
+
+    // --- FUNCIÓN PARA CREAR BOTONES DE LEYENDA ---
+    function generateHtmlLegend(chart) {
+        const legendContainer = document.getElementById('customLegend');
+        legendContainer.innerHTML = ''; // Limpiar previo
+
+        chart.data.datasets.forEach((dataset, index) => {
+            // Crear botón
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            
+            // Crear bolita de color
+            const colorBox = document.createElement('span');
+            colorBox.className = 'legend-color-box';
+            colorBox.style.backgroundColor = dataset.borderColor;
+
+            // Texto
+            const text = document.createElement('span');
+            text.textContent = dataset.label;
+
+            item.appendChild(colorBox);
+            item.appendChild(text);
+
+            // Acción al hacer click
+            item.onclick = () => {
+                // Alternar visibilidad en la gráfica
+                const isVisible = chart.isDatasetVisible(index);
+                if (isVisible) {
+                    chart.hide(index);
+                    item.classList.add('hidden'); // Añadir clase visual de "apagado"
+                } else {
+                    chart.show(index);
+                    item.classList.remove('hidden');
+                }
+            };
+
+            legendContainer.appendChild(item);
+        });
     }
 
     function renderEmptyChart() {

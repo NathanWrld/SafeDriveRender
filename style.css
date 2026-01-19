@@ -250,7 +250,7 @@ canvas {
 }
 
 /* ==========================================================================
-   GRÁFICAS – CHART (AJUSTADO: ESCRITORIO GRANDE / MÓVIL SCROLL)
+   GRÁFICAS – CHART Y LEYENDA EXTERNA
    ========================================================================== */
 .chart-container {
   position: relative;
@@ -264,39 +264,73 @@ canvas {
   box-sizing: border-box; 
 }
 
-/* El canvas siempre llena a su contenedor padre */
-.chart-container canvas {
-  width: 100% !important;
-  height: 100% !important;
+/* --- NUEVO: Leyenda HTML Externa --- */
+.chart-legend-html {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px; /* Separación con la gráfica */
 }
 
-/* ESCRITORIO: Altura solicitada de 550px */
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #334155;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.legend-item:hover {
+    background: #475569;
+}
+
+.legend-item.hidden {
+    opacity: 0.5; /* Estilo cuando está desactivado */
+    text-decoration: line-through;
+}
+
+.legend-color-box {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Contenedor del Canvas */
 .chart-scroll-wrapper {
   position: relative;
   width: 100%;
-  height: 550px; /* <--- TU PEDIDO: GRÁFICA ALTA EN PC */
-  overflow-x: hidden; /* En PC no suele necesitar scroll si la pantalla es ancha */
-  overflow-y: hidden;
+  height: 400px; /* Altura estándar cómoda */
+  overflow-x: hidden;
 }
 
+/* Ajustes Móviles */
 @media (max-width: 768px) {
-  .chart-container {
-    padding: 0; /* Sin padding para ganar espacio */
-    margin-bottom: 20px;
+  .chart-container { padding: 10px 5px; }
+
+  .chart-legend-html { gap: 8px; }
+  
+  .legend-item {
+      padding: 5px 10px;
+      font-size: 12px; /* Tamaño legible en móvil */
   }
 
   .chart-scroll-wrapper {
-    /* Altura reducida para que no ocupe toda la pantalla */
-    height: 300px; 
-    
+    height: 350px; 
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Ancho interno forzado para que los puntos se separen */
   .chart-scroll-wrapper canvas {
-    /* Ancho reducido: 600px es suficiente para 30 días en móvil.
-       Se verá denso pero completo. */
-    min-width: 600px; 
+    min-width: 800px; 
     height: 100% !important;
   }
 }
