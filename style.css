@@ -357,6 +357,20 @@ video, canvas.output_canvas {
   overflow-x: hidden;
 }
 
+/* --- AGREGA ESTO AQUÍ (Arregla la vista en PC) --- */
+.chart-body {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.chart-body canvas {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important; /* Quita el borde azul de la cámara */
+  border-radius: 0 !important;
+}
+
 /* AJUSTES MÓVILES PARA GRÁFICA */
 @media (max-width: 768px) {
   .chart-container {
