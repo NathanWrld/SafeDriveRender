@@ -209,29 +209,34 @@
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             currentUserId = user.id; 
+            
+            // Cargar tema guardado antes de renderizar
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.body.setAttribute('data-theme', 'light');
+                updateLogos(true);
+            }
+
             loadChartData(user.id);
             fetchHistory(1);
         }
     }
 
     document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
-        // Esperamos 50ms para asegurar que el navegador ya mostró el div
-        // y que el contenedor tiene un ancho real mayor a 0.
         setTimeout(() => {
             if(myChart) {
-                myChart.resize(); // Recalcula el tamaño basado en el contenedor visible
-                myChart.update(); // Fuerza el redibujado de las líneas
+                myChart.resize();
+                myChart.update();
             }
         }, 50);
     });
 
-    // --- CARGA DE DATOS OPTIMIZADA (USANDO VISTA) ---
+    // --- CARGA DE DATOS OPTIMIZADA ---
     async function loadChartData(userId) {
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
 
-        // 1. Obtener sesiones
         const { data: sesiones } = await supabase
             .from('sesiones_conduccion')
             .select('id_sesion')
@@ -244,7 +249,6 @@
             return;
         }
 
-        // 2. CONSULTA A LA VISTA "resumen_diario"
         const { data: stats, error } = await supabase
             .from('resumen_diario')
             .select('fecha, riesgo, total_minutos')
@@ -262,20 +266,16 @@
 
     function processAndRenderChart(stats, startDate, endDate) {
         const dailyStats = {};
-        
-        // Inicializar calendario vacío
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0, Total: 0 };
         }
 
-        // Llenar con datos de la VISTA
         stats.forEach(item => {
             const dateStr = item.fecha; 
             if (dailyStats[dateStr]) {
                 let nivel = item.riesgo || 'Normal';
                 if (nivel === 'Alto riesgo') nivel = 'Alto';
-                
                 if (dailyStats[dateStr][nivel] !== undefined) {
                     dailyStats[dateStr][nivel] += item.total_minutos; 
                     dailyStats[dateStr].Total += item.total_minutos;
@@ -283,19 +283,14 @@
             }
         });
 
-        // Convertir a Porcentajes
         const labels = Object.keys(dailyStats);
         const dataNormal = [], dataLeve = [], dataModerado = [], dataAlto = [];
 
         labels.forEach(date => {
             const day = dailyStats[date];
             const total = day.Total || 1; 
-
             if (day.Total === 0) {
-                dataNormal.push(null); 
-                dataLeve.push(null);
-                dataModerado.push(null);
-                dataAlto.push(null);
+                dataNormal.push(null); dataLeve.push(null); dataModerado.push(null); dataAlto.push(null);
             } else {
                 dataNormal.push((day.Normal / total) * 100);
                 dataLeve.push((day.Leve / total) * 100);
@@ -310,6 +305,11 @@
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
         const isMobile = window.innerWidth < 768;
+        
+        // Colores dinámicos según el tema
+        const isLight = document.body.getAttribute('data-theme') === 'light';
+        const textColor = isLight ? '#475569' : '#94a3b8';
+        const gridColor = isLight ? '#e2e8f0' : '#334155';
 
         if (myChart) myChart.destroy();
 
@@ -318,130 +318,49 @@
             data: {
                 labels: labels,
                 datasets: [
-                    {
-                        label: 'Normal',
-                        data: dNormal,
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: isMobile ? 1.5 : 2,
-                        tension: 0.3,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHoverRadius: 5,
-                        pointHitRadius: 40,
-                        fill: true 
-                    },
-                    {
-                        label: 'Fatiga',
-                        data: dLeve,
-                        borderColor: '#facc15',
-                        backgroundColor: 'rgba(250, 204, 21, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
-                        tension: 0.3,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHoverRadius: 5,
-                        pointHitRadius: 40,
-                        fill: true
-                    },
-                    {
-                        label: 'Somnolencia',
-                        data: dModerado,
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
-                        tension: 0.3,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHoverRadius: 5,
-                        pointHitRadius: 40,
-                        fill: true
-                    },
-                    {
-                        label: 'Microsueño',
-                        data: dAlto,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderWidth: isMobile ? 1.5 : 2,
-                        tension: 0.3,
-                        pointRadius: isMobile ? 2 : 3,
-                        pointHoverRadius: 5,
-                        pointHitRadius: 40,
-                        fill: true
-                    }
+                    { label: 'Normal', data: dNormal, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.15)', borderWidth: isMobile ? 1.5 : 2, tension: 0.3, pointRadius: isMobile ? 2 : 3, pointHoverRadius: 5, pointHitRadius: 40, fill: true },
+                    { label: 'Fatiga', data: dLeve, borderColor: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.2)', borderWidth: isMobile ? 1.5 : 2, tension: 0.3, pointRadius: isMobile ? 2 : 3, pointHoverRadius: 5, pointHitRadius: 40, fill: true },
+                    { label: 'Somnolencia', data: dModerado, borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.2)', borderWidth: isMobile ? 1.5 : 2, tension: 0.3, pointRadius: isMobile ? 2 : 3, pointHoverRadius: 5, pointHitRadius: 40, fill: true },
+                    { label: 'Microsueño', data: dAlto, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)', borderWidth: isMobile ? 1.5 : 2, tension: 0.3, pointRadius: isMobile ? 2 : 3, pointHoverRadius: 5, pointHitRadius: 40, fill: true }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 resizeDelay: 200,
-                
-                // INTERACCIÓN MEJORADA: 'nearest' y 'intersect: false' para móviles
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                },
-
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
                 layout: { padding: { top: 20, left: 5, right: 10, bottom: 0 } },
-                
                 scales: {
                     x: {
                         ticks: { 
-                            color: '#94a3b8', 
+                            color: textColor, // <--- DINÁMICO
                             font: { size: isMobile ? 10 : 11 },
-                            
-                            // Rotación: Inclinada en PC, Horizontal en Móvil
                             minRotation: isMobile ? 0 : 45, 
                             maxRotation: isMobile ? 0 : 45,
-                            
-                            // Ajuste automático de espacio
-                            autoSkip: true, 
-                            autoSkipPadding: 15,
-                            maxTicksLimit: isMobile ? 12 : 31,
-                            
-                            callback: function(val) {
-                                const label = this.getLabelForValue(val);
-                                return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
-                            }
+                            autoSkip: true, autoSkipPadding: 15, maxTicksLimit: isMobile ? 12 : 31,
+                            callback: function(val) { const label = this.getLabelForValue(val); return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label; }
                         },
-                        grid: { color: '#334155', drawBorder: false, display: true }
+                        grid: { color: gridColor, drawBorder: false, display: true }
                     },
                     y: {
-                        beginAtZero: true,
-                        max: 100,
-                        ticks: { 
-                            color: '#94a3b8', 
-                            font: { size: 10 },
-                            callback: v => v + "%", 
-                            maxTicksLimit: 6 
-                        },
-                        grid: { color: '#334155', drawBorder: false },
-                        title: { display: !isMobile, text: 'Tiempo (%)', color: '#cbd5e1' }
+                        beginAtZero: true, max: 100,
+                        ticks: { color: textColor, font: { size: 10 }, callback: v => v + "%", maxTicksLimit: 6 },
+                        grid: { color: gridColor, drawBorder: false },
+                        title: { 
+                            display: !isMobile, 
+                            text: 'Tiempo (%)', 
+                            color: textColor // <--- AQUI ESTABA EL ERROR (ARREGLADO)
+                        }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     title: { display: false },
-                    
-                    // CONFIGURACIÓN DE TOOLTIP COMPACTO
                     tooltip: {
-                        enabled: true,
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        
-                        // Fuentes pequeñas en móvil
-                        titleFont: { size: isMobile ? 11 : 13, weight: 'bold' },
-                        bodyFont: { size: isMobile ? 11 : 12 },
-                        footerFont: { size: isMobile ? 9 : 11 },
-                        
-                        padding: isMobile ? 8 : 10,
-                        bodySpacing: isMobile ? 3 : 6,
-                        
-                        // Cuadrito de color pequeño
-                        boxWidth: isMobile ? 8 : 10,
-                        boxHeight: isMobile ? 8 : 10,
-                        
-                        // Posición FIJA ARRIBA del dedo
-                        yAlign: 'bottom', 
-                        
-                        displayColors: true,
+                        enabled: true, backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { size: isMobile ? 11 : 13, weight: 'bold' }, bodyFont: { size: isMobile ? 11 : 12 }, footerFont: { size: isMobile ? 9 : 11 },
+                        padding: isMobile ? 8 : 10, bodySpacing: isMobile ? 3 : 6, boxWidth: isMobile ? 8 : 10, boxHeight: isMobile ? 8 : 10,
+                        yAlign: 'bottom', displayColors: true,
                         callbacks: {
                             title: function(context) { return context[0].label; },
                             label: function(context) {
@@ -456,11 +375,12 @@
         });
 
         generateHtmlLegend(myChart);
+        // Exponer globalmente para actualizar tema
+        window.myChart = myChart; 
 
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
-                // Scroll inicial a la derecha
                 if (scrollWrapper && scrollWrapper.scrollWidth > scrollWrapper.clientWidth) {
                     scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
                 }
@@ -468,36 +388,23 @@
         }
     }
 
-    // --- FUNCIÓN PARA CREAR BOTONES DE LEYENDA ---
     function generateHtmlLegend(chart) {
         const legendContainer = document.getElementById('customLegend');
         legendContainer.innerHTML = ''; 
-
         chart.data.datasets.forEach((dataset, index) => {
             const item = document.createElement('div');
             item.className = 'legend-item';
-            
             const colorBox = document.createElement('span');
             colorBox.className = 'legend-color-box';
             colorBox.style.backgroundColor = dataset.borderColor;
-
             const text = document.createElement('span');
             text.textContent = dataset.label;
-
-            item.appendChild(colorBox);
-            item.appendChild(text);
-
+            item.appendChild(colorBox); item.appendChild(text);
             item.onclick = () => {
                 const isVisible = chart.isDatasetVisible(index);
-                if (isVisible) {
-                    chart.hide(index);
-                    item.classList.add('hidden');
-                } else {
-                    chart.show(index);
-                    item.classList.remove('hidden');
-                }
+                if (isVisible) { chart.hide(index); item.classList.add('hidden'); } 
+                else { chart.show(index); item.classList.remove('hidden'); }
             };
-
             legendContainer.appendChild(item);
         });
     }
@@ -511,6 +418,46 @@
             options: { responsive: true, plugins: { legend: { display: false } } }
         });
     }
+
+    // --- CAMBIO DE TEMA (LOGICA MEJORADA) ---
+    const themeBtn = document.getElementById('themeToggle');
+    const headerLogo = document.getElementById('headerLogo');
+    const sidebarLogo = document.getElementById('sidebarLogo');
+
+    function updateLogos(isLight) {
+        const logoSrc = isLight ? 'img/blue-logo.png' : 'img/white-logo.png';
+        if(headerLogo) headerLogo.src = logoSrc;
+        if(sidebarLogo) sidebarLogo.src = logoSrc;
+    }
+
+    themeBtn.addEventListener('click', () => {
+        const currentTheme = document.body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        if (newTheme === 'light') document.body.setAttribute('data-theme', 'light');
+        else document.body.removeAttribute('data-theme');
+
+        updateLogos(newTheme === 'light');
+        localStorage.setItem('theme', newTheme);
+        
+        // ACTUALIZAR GRÁFICA EN TIEMPO REAL
+        if(window.myChart) {
+            const textColor = newTheme === 'light' ? '#475569' : '#94a3b8';
+            const gridColor = newTheme === 'light' ? '#e2e8f0' : '#334155';
+            
+            window.myChart.options.scales.x.ticks.color = textColor;
+            window.myChart.options.scales.y.ticks.color = textColor;
+            window.myChart.options.scales.x.grid.color = gridColor;
+            window.myChart.options.scales.y.grid.color = gridColor;
+            
+            // ACTUALIZAR TAMBIÉN EL TÍTULO "TIEMPO (%)"
+            if(window.myChart.options.scales.y.title) {
+                window.myChart.options.scales.y.title.color = textColor;
+            }
+            
+            window.myChart.update();
+        }
+    });
 
     // --- LÓGICA DE HISTORIAL ---
     const tableBody = document.getElementById('historyTable');
@@ -528,7 +475,6 @@
     async function fetchHistory(page) {
         if (!currentUserId) return;
         tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando registros...</td></tr>';
-        
         const fDate = document.getElementById('filterDate').value;
         const fType = document.getElementById('filterType').value;
         const fLevel = document.getElementById('filterLevel').value;
@@ -541,7 +487,6 @@
         if (sessionIds.length === 0) { renderTable([], 0); return; }
 
         let query = supabase.from('Alertas').select('*', { count: 'exact' }).in('id_sesion', sessionIds).order('fecha_alerta', { ascending: false }).range(from, to);
-
         if (fLevel) query = query.eq('nivel_riesgo', fLevel);
         if (fType) query = query.ilike('causa_detonante', `%${fType}%`);
         if (fDate) {
@@ -572,7 +517,6 @@
 
             let causaMostrar = alerta.causa_detonante || 'Desconocida';
             let valorDisplay = alerta.valor_medido ? alerta.valor_medido.toString() : '-';
-
             if (causaMostrar.includes("Somnolencia")) valorDisplay += " eventos"; 
             else if (causaMostrar.includes("Microsueño")) valorDisplay += " seg";
             else if (causaMostrar.includes("Bostezos")) valorDisplay += " veces";
@@ -599,57 +543,6 @@
             });
         });
     });
-
-    // --- LÓGICA DE CAMBIO DE TEMA ---
-    const themeBtn = document.getElementById('themeToggle');
-    const headerLogo = document.getElementById('headerLogo');
-    const sidebarLogo = document.getElementById('sidebarLogo');
-
-    // Función para actualizar logos
-    function updateLogos(isLight) {
-        const logoSrc = isLight ? 'img/blue-logo.png' : 'img/white-logo.png';
-        if(headerLogo) headerLogo.src = logoSrc;
-        if(sidebarLogo) sidebarLogo.src = logoSrc;
-    }
-
-    // Función principal de cambio
-    themeBtn.addEventListener('click', () => {
-        const currentTheme = document.body.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        
-        // 1. Cambiar atributos CSS
-        if (newTheme === 'light') {
-            document.body.setAttribute('data-theme', 'light');
-        } else {
-            document.body.removeAttribute('data-theme');
-        }
-
-        // 2. Cambiar Logos
-        updateLogos(newTheme === 'light');
-
-        // 3. (Opcional) Guardar preferencia en el navegador
-        localStorage.setItem('theme', newTheme);
-        
-        // 4. Actualizar gráficas (Chart.js necesita saber que el color de texto cambió)
-        if(myChart) {
-            // Actualizar colores de la gráfica según el tema
-            const textColor = newTheme === 'light' ? '#475569' : '#94a3b8';
-            const gridColor = newTheme === 'light' ? '#e2e8f0' : '#334155';
-            
-            myChart.options.scales.x.ticks.color = textColor;
-            myChart.options.scales.y.ticks.color = textColor;
-            myChart.options.scales.x.grid.color = gridColor;
-            myChart.options.scales.y.grid.color = gridColor;
-            myChart.update();
-        }
-    });
-
-    // Cargar preferencia guardada al iniciar
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-        document.body.setAttribute('data-theme', 'light');
-        updateLogos(true);
-    }
 
     initDashboard();
 </script>
