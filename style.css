@@ -70,7 +70,7 @@ h1, h2 {
   display: flex;
   flex-direction: column;
   padding-top: 20px;
-  box-shadow: 2px 0 15px rgba(0,0,0,0.1); /* Sombra más sutil */
+  box-shadow: 2px 0 15px rgba(0,0,0,0.1);
   transition: 0.35s ease;
   z-index: 1600;
 }
@@ -99,17 +99,18 @@ h1, h2 {
   color: #fff;
 }
 
-.logoutBtn{
-  text-align: center;
-}
-
-/* Botón de tema en el sidebar */
+/* Botón cerrar sesión y footer */
 .sidebar-footer {
     margin-top: auto;
     padding-bottom: 20px;
     width: 100%;
 }
 
+#logoutBtn {
+    text-align: center;
+}
+
+/* Botón de tema */
 .theme-btn {
     background: transparent;
     border: 1px solid var(--border-color);
@@ -269,6 +270,7 @@ h1, h2 {
   justify-content: center;
 }
 
+/* Solo afecta a la cámara y su canvas de salida */
 video, canvas.output_canvas {
   border-radius: 12px;
   width: 50%;
@@ -276,7 +278,7 @@ video, canvas.output_canvas {
   border: 2px solid #38bdf8;
 }
 
-.output_canvas { display: none; } /* Se mostrará con JS */
+.output_canvas { display: none; } 
 
 .btn-detection-container {
   display: flex;
@@ -306,13 +308,13 @@ video, canvas.output_canvas {
   position: relative;
   width: 100%;
   max-width: 100%;
-  background: var(--bg-card); /* Usa variable */
+  background: var(--bg-card);
   padding: 15px;
   border-radius: 12px;
   box-shadow: 0 0 15px rgba(0,0,0,0.05);
   margin-bottom: 25px;
   box-sizing: border-box; 
-  border: 1px solid var(--border-color); /* Borde sutil */
+  border: 1px solid var(--border-color);
 }
 
 /* Leyenda HTML Externa */
@@ -357,6 +359,14 @@ video, canvas.output_canvas {
     border-radius: 50%;
 }
 
+/* --- NUEVO: Estilo para la guía debajo de la gráfica --- */
+#chartLegendInfo {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: var(--text-secondary); /* Usa la variable de tema */
+    transition: color 0.3s;
+}
+
 /* Contenedor del Canvas */
 .chart-scroll-wrapper {
   position: relative;
@@ -365,7 +375,7 @@ video, canvas.output_canvas {
   overflow-x: hidden;
 }
 
-/* --- AGREGA ESTO AQUÍ (Arregla la vista en PC) --- */
+/* --- REGLAS PC: Asegura que en escritorio ocupe el 100% --- */
 .chart-body {
   width: 100%;
   height: 100%;
@@ -375,11 +385,11 @@ video, canvas.output_canvas {
 .chart-body canvas {
   width: 100% !important;
   height: 100% !important;
-  border: none !important; /* Quita el borde azul de la cámara */
+  border: none !important; /* Quita bordes heredados */
   border-radius: 0 !important;
 }
 
-/* AJUSTES MÓVILES PARA GRÁFICA */
+/* --- REGLAS MÓVIL: Aplica el scroll y ancho forzado --- */
 @media (max-width: 768px) {
   .chart-container {
     padding: 0; 
@@ -387,7 +397,6 @@ video, canvas.output_canvas {
     box-shadow: none;
   }
 
-  /* 1. Contenedor Scroll */
   .chart-scroll-wrapper {
     width: 100%;
     overflow-x: auto; 
@@ -396,17 +405,11 @@ video, canvas.output_canvas {
     background: linear-gradient(to right, var(--bg-card) 30%, rgba(0,0,0,0) 0%);
   }
 
-  /* 2. CAJA INTERNA (Fix del problema táctil) */
+  /* CAJA INTERNA (Fix táctil y ancho mínimo) */
   .chart-body {
     height: 350px;       /* Altura fija */
-    min-width: 700px;    /* Ancho forzado para que respiren los datos */
-    position: relative;  /* CRUCIAL */
-  }
-
-  /* 3. Canvas llena la caja */
-  .chart-body canvas {
-    width: 100% !important;
-    height: 100% !important;
+    min-width: 700px;    /* Ancho forzado para scroll horizontal */
+    position: relative; 
   }
   
   .chart-legend-html { gap: 5px; margin-bottom: 10px; }
@@ -516,7 +519,7 @@ video, canvas.output_canvas {
   flex-wrap: wrap;
 }
 
-/* Inputs de filtros también usan variables */
+/* Inputs de filtros */
 .filter-item input, .filter-item select {
     background: var(--bg-input);
     color: var(--text-main);
@@ -531,7 +534,7 @@ video, canvas.output_canvas {
   margin-top: 20px;
   overflow-x: auto;
   border-radius: 12px;
-  background: var(--bg-input); /* Fondo un poco diferente al card */
+  background: var(--bg-input); 
   padding: 20px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   margin-bottom: 30px;
@@ -556,7 +559,7 @@ video, canvas.output_canvas {
 }
 
 .history-table tbody tr {
-  background: var(--bg-card); /* Fila tipo tarjeta */
+  background: var(--bg-card); 
   transition: background 0.2s ease;
 }
 
@@ -570,7 +573,6 @@ video, canvas.output_canvas {
   border-bottom: 1px solid var(--border-color);
 }
 
-/* Colores de texto en tabla */
 .history-table td.level-normal { color: var(--color-normal); font-weight: 600; }
 .history-table td.level-leve { color: var(--color-leve); font-weight: 600; }
 .history-table td.level-moderado { color: var(--color-moderado); font-weight: 600; }
