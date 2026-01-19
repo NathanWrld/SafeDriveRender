@@ -101,27 +101,40 @@ async function endUserSession() {
 // -------------------- BOTONES DETECCIÓN --------------------
 // script.js
 
+// script.js - Reemplaza el evento click de startDetection
+
 document.getElementById('startDetection').addEventListener('click', async () => {
+    // 1. Obtener Rol
     const rol = await getUserRole();
     console.log('Rol detectado:', rol);
 
+    // 2. Preparar UI (pero aún no arrancamos cámara)
     if (rol === 'Dev') canvasElement.style.display = 'block';
     else canvasElement.style.display = 'none';
-    videoElement.style.display = 'block';
-
-    await startUserSession(); // Esto llena la variable global sessionId
-
-    // --- AQUÍ ESTABA EL ERROR ---
-    // Antes: startDetection({ rol, videoElement, canvasElement, estado, cameraRef });
     
-    // AHORA (Agrega sessionId):
+    // 3. INTENTAR CREAR LA SESIÓN
+    console.log("⏳ Creando sesión en base de datos...");
+    await startUserSession(); 
+
+    // 4. VERIFICACIÓN CRÍTICA
+    if (!sessionId) {
+        console.error("❌ ERROR FATAL: No se pudo obtener un ID de sesión.");
+        alert("Error de conexión: No se pudo crear la sesión de conducción. Revisa tu conexión o los permisos de la base de datos.");
+        return; // <--- DETENEMOS TODO AQUÍ. No arranca la cámara.
+    }
+
+    console.log("✅ Sesión creada con éxito. ID:", sessionId);
+
+    // 5. SI TENEMOS ID, ARRANCAMOS
+    videoElement.style.display = 'block';
+    
     startDetection({ 
         rol, 
         videoElement, 
         canvasElement, 
         estado, 
         cameraRef, 
-        sessionId // <--- IMPORTANTE: Pasamos el ID a la otra función
+        sessionId // <--- Ahora estamos 100% seguros que esto no es null
     });
 
     document.getElementById('startDetection').style.display = 'none';
