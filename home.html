@@ -207,7 +207,14 @@
     }
 
     document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
-        if(myChart) myChart.resize(); 
+        // Esperamos 50ms para asegurar que el navegador ya mostró el div
+        // y que el contenedor tiene un ancho real mayor a 0.
+        setTimeout(() => {
+            if(myChart) {
+                myChart.resize(); // Recalcula el tamaño basado en el contenedor visible
+                myChart.update(); // Fuerza el redibujado de las líneas
+            }
+        }, 50);
     });
 
     // --- CARGA DE DATOS OPTIMIZADA (USANDO VISTA) ---
