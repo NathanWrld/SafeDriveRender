@@ -1,16 +1,54 @@
 /* ==========================================================================
+   VARIABLES Y TEMAS
+   ========================================================================== */
+:root {
+  /* TEMA OSCURO (Por defecto) */
+  --bg-body: #0f172a;
+  --bg-card: #1e293b;
+  --bg-sidebar: #1e293b;
+  --bg-input: #0f172a;
+  --text-main: #fff;
+  --text-secondary: #cbd5e1;
+  --text-highlight: #60a5fa; /* Azul claro */
+  --border-color: #334155;
+  --hover-color: #334155;
+  --chart-legend-text: #cbd5e1;
+  
+  /* Colores fijos de alertas (no cambian con el tema) */
+  --color-normal: #38bdf8;
+  --color-leve: #22c55e;
+  --color-moderado: #facc15;
+  --color-alto: #ef4444;
+}
+
+/* TEMA CLARO (Se activa con data-theme="light") */
+[data-theme="light"] {
+  --bg-body: #f1f5f9;       /* Gris muy claro */
+  --bg-card: #ffffff;       /* Blanco */
+  --bg-sidebar: #ffffff;    
+  --bg-input: #f8fafc;
+  --text-main: #0f172a;     /* Azul muy oscuro */
+  --text-secondary: #475569;
+  --text-highlight: #2563eb; /* Azul intenso */
+  --border-color: #e2e8f0;
+  --hover-color: #f1f5f9;
+  --chart-legend-text: #475569;
+}
+
+/* ==========================================================================
    RESET Y BASE
    ========================================================================== */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #fff;
+  background: var(--bg-body);
+  color: var(--text-main);
   max-width: 100%;
+  transition: background 0.3s, color 0.3s;
 }
 
 h1, h2 {
-  color: #60a5fa;
+  color: var(--text-highlight);
 }
 
 .normal-container {
@@ -28,32 +66,32 @@ h1, h2 {
   left: 0;
   width: 250px;
   height: 100vh;
-  background: #1e293b;
+  background: var(--bg-sidebar);
   display: flex;
   flex-direction: column;
   padding-top: 20px;
-  box-shadow: 2px 0 15px rgba(0,0,0,0.4);
+  box-shadow: 2px 0 15px rgba(0,0,0,0.1); /* Sombra más sutil */
   transition: 0.35s ease;
+  z-index: 1600;
 }
 
 .sidebar h2 {
   text-align: center;
   margin-bottom: 30px;
-  color: #60a5fa;
 }
 
 .sidebar a {
   padding: 15px 20px;
   text-decoration: none;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   display: block;
   transition: 0.2s;
   cursor: pointer;
 }
 
 .sidebar a:hover {
-  background: #334155;
-  color: #fff;
+  background: var(--hover-color);
+  color: var(--text-main);
 }
 
 .sidebar a.active {
@@ -61,15 +99,45 @@ h1, h2 {
   color: #fff;
 }
 
+/* Botón de tema en el sidebar */
+.sidebar-footer {
+    margin-top: auto;
+    padding-bottom: 20px;
+    width: 100%;
+}
+
+.theme-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 85%;
+    margin: 0 auto 10px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 14px;
+}
+
+.theme-btn:hover {
+    background: var(--hover-color);
+    color: var(--text-main);
+    border-color: var(--text-highlight);
+}
+
 /* ==========================================================================
    HEADER SUPERIOR
    ========================================================================== */
 .top-header {
-  background: #1e293b;
+  background: var(--bg-card);
   display: none;
   align-items: center;
   padding: 10px 15px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   z-index: 1500;
 }
 
@@ -85,7 +153,7 @@ h1, h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px ;
+  margin-bottom: 20px;
 }
 
 .logo {
@@ -99,17 +167,17 @@ h1, h2 {
 .burger {
   display: none;
   font-size: 25px;
-  background: #334155;
+  background: var(--hover-color);
   padding: 8px 12px;
   border-radius: 6px;
-  color: white;
+  color: var(--text-main);
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
 }
 
 .burger:hover {
-  background: #475569;
+  background: var(--border-color);
 }
 
 /* ==========================================================================
@@ -138,27 +206,11 @@ h1, h2 {
    RESPONSIVE – SIDEBAR MOBILE
    ========================================================================== */
 @media (max-width: 1024px) {
-  .top-header {
-    display: flex;
-  }
-
-  .sidebar {
-    transform: translateX(-260px);
-    width: 240px;
-    z-index: 1600;
-  }
-
-  .sidebar.active {
-    transform: translateX(0);
-  }
-
-  .burger {
-    display: block;
-  }
-
-  .main {
-    padding: 40px 0px 0px !important;
-  }
+  .top-header { display: flex; }
+  .sidebar { transform: translateX(-260px); width: 240px; }
+  .sidebar.active { transform: translateX(0); }
+  .burger { display: block; }
+  .main { padding: 40px 0px 0px !important; }
 }
 
 /* ==========================================================================
@@ -169,48 +221,36 @@ h1, h2 {
   position: fixed;
   top: 15px;
   right: 15px;
-  background: #334155;
-  color: white;
+  background: var(--bg-card);
+  color: var(--text-main);
   padding: 8px 12px;
   font-size: 22px;
   border-radius: 6px;
   cursor: pointer;
   z-index: 1700;
   transition: opacity 0.3s ease;
-}
-
-.close-sidebar:hover {
-  background: #475569;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
 
 @media (max-width: 1024px) {
-  .close-sidebar {
-    display: block;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .close-sidebar.active {
-    opacity: 1;
-    pointer-events: auto;
-  }
+  .close-sidebar { display: block; opacity: 0; pointer-events: none; }
+  .close-sidebar.active { opacity: 1; pointer-events: auto; }
 }
 
 /* ==========================================================================
    CARDS
    ========================================================================== */
 .card {
-  background: #1e293b;
+  background: var(--bg-card);
   padding: 20px;
   border-radius: 10px;
   margin: 20px 20px 20px 270px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.3);
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  transition: background 0.3s;
 }
 
 @media (max-width: 1024px) {
-  .card {
-    margin: 0 20px;
-  }
+  .card { margin: 20px; }
 }
 
 /* ==========================================================================
@@ -221,19 +261,16 @@ h1, h2 {
   justify-content: center;
 }
 
-video,
-canvas {
+video, canvas.output_canvas {
   border-radius: 12px;
   width: 50%;
   height: 380px;
   border: 2px solid #38bdf8;
 }
 
-.output_canvas{
-  display: none;
-}
+.output_canvas { display: none; } /* Se mostrará con JS */
 
-.btn-detection-container{
+.btn-detection-container {
   display: flex;
   justify-content: center;
   flex-direction: column;
@@ -247,14 +284,11 @@ canvas {
 }
 
 @media screen and (max-width: 768px) {
-  video, canvas {
+  video, canvas.output_canvas {
     width: 100%;
     height: 240px;
   }
-
-  .cam-container {
-    flex-direction: column;
-  }
+  .cam-container { flex-direction: column; }
 }
 
 /* ==========================================================================
@@ -264,44 +298,48 @@ canvas {
   position: relative;
   width: 100%;
   max-width: 100%;
-  background: #1e293b;
+  background: var(--bg-card); /* Usa variable */
   padding: 15px;
   border-radius: 12px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.4);
+  box-shadow: 0 0 15px rgba(0,0,0,0.05);
   margin-bottom: 25px;
   box-sizing: border-box; 
+  border: 1px solid var(--border-color); /* Borde sutil */
 }
 
-/* --- NUEVO: Leyenda HTML Externa --- */
+/* Leyenda HTML Externa */
 .chart-legend-html {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 15px; /* Separación con la gráfica */
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .legend-item {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: #334155;
+    background: var(--bg-input);
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 13px;
-    color: #fff;
+    color: var(--text-main);
     cursor: pointer;
     user-select: none;
-    border: 1px solid transparent;
+    border: 1px solid var(--border-color);
     transition: all 0.2s;
 }
 
 .legend-item:hover {
-    background: #475569;
+    background: var(--hover-color);
+    border-color: var(--text-highlight);
 }
 
 .legend-item.hidden {
-    opacity: 0.5; /* Estilo cuando está desactivado */
+    opacity: 0.5;
     text-decoration: line-through;
 }
 
@@ -315,37 +353,40 @@ canvas {
 .chart-scroll-wrapper {
   position: relative;
   width: 100%;
-  height: 400px; /* Altura estándar cómoda */
+  height: 400px;
   overflow-x: hidden;
 }
 
+/* AJUSTES MÓVILES PARA GRÁFICA */
 @media (max-width: 768px) {
   .chart-container {
     padding: 0; 
+    border: none;
+    box-shadow: none;
   }
 
-  /* 1. El contenedor con scroll */
+  /* 1. Contenedor Scroll */
   .chart-scroll-wrapper {
     width: 100%;
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 5px; /* Espacio para la barra de scroll */
+    padding-bottom: 5px;
+    background: linear-gradient(to right, var(--bg-card) 30%, rgba(0,0,0,0) 0%);
   }
 
-  /* 2. La CAJA INTERNA (Aquí definimos el tamaño real) */
+  /* 2. CAJA INTERNA (Fix del problema táctil) */
   .chart-body {
     height: 350px;       /* Altura fija */
     min-width: 700px;    /* Ancho forzado para que respiren los datos */
-    position: relative;  /* CRUCIAL para que Chart.js detecte bien el touch */
+    position: relative;  /* CRUCIAL */
   }
 
-  /* 3. El Canvas simplemente llena la caja */
+  /* 3. Canvas llena la caja */
   .chart-body canvas {
     width: 100% !important;
     height: 100% !important;
   }
   
-  /* Ajustes de leyenda */
   .chart-legend-html { gap: 5px; margin-bottom: 10px; }
   .legend-item { padding: 4px 10px; font-size: 11px; }
 }
@@ -361,36 +402,36 @@ canvas {
   color: #fff;
   transition: ease-in-out 0.1s all;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .primary-button:hover {
-  cursor: pointer;
-  background-color: white;
+  background-color: var(--bg-card);
   color: #3b82f6;
+  outline: 2px solid #3b82f6;
 }
 
-/* ------------------------------
-      GESTIÓN DE USUARIO / EDITAR PERFIL
------------------------------- */
+/* ==========================================================================
+   GESTIÓN DE USUARIO
+   ========================================================================== */
 #usuarios form {
   display: flex;
   flex-direction: column;
   gap: 20px;
   max-width: 500px;
   margin: 0 auto;
-  background: #1e293b;
+  background: var(--bg-card);
   padding: 25px;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  border: 1px solid var(--border-color);
 }
 
 #usuarios h2 {
   text-align: center;
   margin-bottom: 10px;
-  color: #60a5fa;
 }
 
-/* Campos del formulario */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -399,15 +440,15 @@ canvas {
 .form-group label {
   font-weight: 600;
   margin-bottom: 6px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .form-group input {
   padding: 12px 15px;
   border-radius: 8px;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  color: var(--text-main);
   font-size: 15px;
   transition: border-color 0.2s;
 }
@@ -418,58 +459,32 @@ canvas {
 }
 
 .form-group #userEmail {
-  background: #334155;
+  background: var(--hover-color);
   cursor: not-allowed;
-  color: #9ca3af;
+  color: var(--text-secondary);
+  opacity: 0.7;
 }
 
-/* Mensaje de feedback */
 #profileMessage {
   font-size: 14px;
-  color: #facc15; /* amarillo para advertencias/info */
+  color: #facc15;
   text-align: center;
   min-height: 20px;
 }
 
-/* Botón de guardar */
 #usuarios .primary-button {
   width: 100%;
   padding: 14px;
   font-size: 16px;
-  font-weight: 700;
-  border-radius: 8px;
-  background-color: #3b82f6;
-  color: #fff;
-  transition: all 0.2s ease-in-out;
 }
 
-#usuarios .primary-button:hover {
-  background-color: #60a5fa;
-  color: #0f172a;
-  cursor: pointer;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
-  #usuarios form {
-    padding: 20px;
-    gap: 15px;
-  }
-
-  .form-group input {
-    font-size: 14px;
-    padding: 10px;
-  }
-
-  #usuarios .primary-button {
-    font-size: 15px;
-    padding: 12px;
-  }
+  #usuarios form { padding: 20px; gap: 15px; }
+  .form-group input { font-size: 14px; padding: 10px; }
 }
-
 
 /* ==========================================================================
-   FILTROS HISTORIAL
+   HISTORIAL Y TABLAS
    ========================================================================== */
 .filter-wrapper {
   display: flex;
@@ -479,76 +494,71 @@ canvas {
   flex-wrap: wrap;
 }
 
-#applyFilters {
-  padding: 8px 20px;
+/* Inputs de filtros también usan variables */
+.filter-item input, .filter-item select {
+    background: var(--bg-input);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: 6px;
 }
 
-/* ==========================================================================
-   TABLAS – HISTORIAL
-   ========================================================================== */
+#applyFilters { padding: 8px 20px; }
+
 .table-container {
   margin-top: 20px;
   overflow-x: auto;
   border-radius: 12px;
-  background: #0d1220;
+  background: var(--bg-input); /* Fondo un poco diferente al card */
   padding: 20px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   margin-bottom: 30px;
+  border: 1px solid var(--border-color);
 }
 
 .history-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0 10px;
-  color: #fff;
+  color: var(--text-main);
   font-size: 15px;
 }
 
 .history-table thead th {
-  background: #1e293b;
+  background: var(--bg-card);
   padding: 12px 16px;
   text-align: left;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  border-bottom: 2px solid #334155;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
 .history-table tbody tr {
-  background: #1a2234;
+  background: var(--bg-card); /* Fila tipo tarjeta */
   transition: background 0.2s ease;
 }
 
 .history-table tbody tr:hover {
-  background: #223048;
+  background: var(--hover-color);
 }
 
 .history-table td {
   padding: 14px 16px;
-  border-top: 1px solid #33415533;
-  border-bottom: 1px solid #33415533;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
-/* Colores por nivel de alerta */
-.history-table td.level-normal { color: #38bdf8; font-weight: 600; }
-.history-table td.level-leve { color: #22c55e; font-weight: 600; }
-.history-table td.level-moderado { color: #facc15; font-weight: 600; }
-.history-table td.level-alto { color: #ef4444; font-weight: 600; }
-
-/* Acción del sistema */
-.history-table td.action-sonora { color: #f87171; font-weight: 600; }
-.history-table td.action-preventiva { color: #a78bfa; font-weight: 600; }
+/* Colores de texto en tabla */
+.history-table td.level-normal { color: var(--color-normal); font-weight: 600; }
+.history-table td.level-leve { color: var(--color-leve); font-weight: 600; }
+.history-table td.level-moderado { color: var(--color-moderado); font-weight: 600; }
+.history-table td.level-alto { color: var(--color-alto); font-weight: 600; }
 
 @media (max-width: 768px) {
-  .history-table td,
-  .history-table th {
-    font-size: 13px;
-    padding: 10px;
-  }
+  .history-table td, .history-table th { font-size: 13px; padding: 10px; }
 }
 
-/* ==========================================================================
-   PAGINACIÓN
-   ========================================================================== */
+/* Paginación */
 .pagination {
   display: flex;
   justify-content: center;
@@ -560,40 +570,26 @@ canvas {
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  gap: 0.5em;
   border-radius: 50px;
   color: white;
   background-color: #3b82f6;
   width: 40px;
   height: 40px;
   border: 1px solid #3b82f6;
-  transition: ease-in-out 0.1s all;
-}
-
-.page-btn svg {
-  width: 24px;
-  height: 24px;
-}
-
-.page-btn:hover {
-  color: #3b82f6;
-  background-color: white;
   cursor: pointer;
 }
 
-#prevPage svg {
-  transform: scale(-1);
-}
+.page-btn svg { width: 24px; height: 24px; }
+#prevPage svg { transform: scale(-1); }
 
 /* ==========================================================================
-   POP-UP PREVENTIVO (MODERADO)
+   POP-UP PREVENTIVO
    ========================================================================== */
-/* Estilos base del Pop-up */
 .warning-popup {
     position: fixed;
     top: 30px;
     left: 50%;
-    transform: translateX(-50%) translateY(-200%); /* Oculto arriba */
+    transform: translateX(-50%) translateY(-200%);
     padding: 25px 40px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.6);
@@ -609,36 +605,13 @@ canvas {
     justify-content: center;
 }
 
-.warning-popup.active {
-    transform: translateX(-50%) translateY(0);
-}
+.warning-popup.active { transform: translateX(-50%) translateY(0); }
+.warning-popup.alert-orange { background: #f59e0b; }
+.warning-popup.alert-red { background: #ef4444; animation: pulseRed 1s infinite; }
 
-/* VARIANTE 1: MODERADO (Naranja) */
-.warning-popup.alert-orange {
-    background: #f59e0b;
-}
+.warning-content h3 { margin: 0 0 10px 0; font-size: 26px; color: #fff; text-transform: uppercase; font-weight: 800; }
+.warning-content p { margin: 5px 0; font-size: 18px; font-weight: 600; color: #fff; }
 
-/* VARIANTE 2: CRÍTICO (Rojo - Para Nivel Alto o Moderado Persistente) */
-.warning-popup.alert-red {
-    background: #ef4444;
-    animation: pulseRed 1s infinite; /* Efecto de latido */
-}
-
-.warning-content h3 {
-    margin: 0 0 10px 0;
-    font-size: 26px;
-    color: #fff;
-    text-transform: uppercase;
-    font-weight: 800;
-}
-
-.warning-content p {
-    margin: 5px 0;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-/* Animación para el estado crítico */
 @keyframes pulseRed {
     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
     70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
