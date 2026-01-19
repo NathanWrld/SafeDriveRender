@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN CORREGIDA: Fix del congelamiento (Crash por variable no definida)
+// VERSIÓN: Registro de 'Leve' en Historial
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -180,7 +180,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
         // =========================================================================
-        // ANÁLISIS 60s (MOVIDO AQUÍ ARRIBA PARA EVITAR EL CRASH)
+        // ANÁLISIS 60s (AQUÍ SE DEFINEN LAS VARIABLES)
         // =========================================================================
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
@@ -208,7 +208,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 eyeState = 'closed';
             }
         } else {
-            // El usuario está abriendo los ojos
             reopenGraceCounter++;
             
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
@@ -216,11 +215,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     // --- EVENTO: LOS OJOS SE ACABAN DE ABRIR ---
                     const totalClosedDuration = closedFrameCounter / FPS;
                     
-                    // 1. SI FUE UN MICROSUEÑO (La alarma ya estaba sonando)
                     if (microsleepTriggered) {
-                        console.log(`🚨 Microsueño finalizado. Duración total: ${totalClosedDuration.toFixed(2)}s`);
-                        
-                        // AQUI ERA EL ERROR: 'totalBlinksLastMinute' ahora sí existe porque lo calculamos arriba
+                        console.log(`🚨 Microsueño finalizado. Total: ${totalClosedDuration.toFixed(2)}s`);
                         sendDetectionEvent({
                             type: 'ALERTA',
                             sessionId,
@@ -230,11 +226,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                             immediate: true,
                             realDuration: totalClosedDuration 
                         });
-
-                        microsleepTriggered = false; // Reset bandera
+                        microsleepTriggered = false; 
                     }
-                    
-                    // 2. SI FUE UN PARPADEO LENTO (Sin alarma previa)
                     else if (totalClosedDuration > MIN_SLOW_BLINK_DURATION && totalClosedDuration < MICROSUEÑO_THRESHOLD) {
                         slowBlinksBuffer.push(Date.now());
                         console.log(`🐢 Parpadeo Lento: ${totalClosedDuration.toFixed(2)}s`);
@@ -243,7 +236,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     blinkTimestamps.push(Date.now());
                     eyeState = 'open';
                 }
-                
                 closedFrameCounter = 0;
             }
         }
@@ -266,18 +258,14 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         // --- GESTIÓN DE RIESGO Y ALARMAS ---
         let riskLevel = 'Normal';
-        const closureDuration = closedFrameCounter / FPS; // Tiempo actual cerrado (en vivo)
+        const closureDuration = closedFrameCounter / FPS; 
         const popupContent = document.getElementById('popupTextContent');
 
-        // A. ALTO RIESGO (MICROSUEÑO EN PROGRESO)
+        // A. ALTO RIESGO
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
-            
-            // Activamos UI y Sonido INMEDIATAMENTE
             warningPopup.className = "warning-popup alert-red active";
-            if (popupContent) {
-                popupContent.innerHTML = `<h3>🚨 ¡PELIGRO! 🚨</h3><p>Mantenga los ojos abiertos.</p>`;
-            }
+            if (popupContent) popupContent.innerHTML = `<h3>🚨 ¡PELIGRO! 🚨</h3><p>Mantenga los ojos abiertos.</p>`;
 
             if (alarmAudio && alarmAudio.paused) {
                 alarmAudio.currentTime = 0;
@@ -286,7 +274,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
-                console.log("⚠️ Alerta activada (esperando a que abra los ojos para guardar...)");
+                console.log("⚠️ Alerta activada (esperando cierre para guardar)");
             }
         } 
         
@@ -294,7 +282,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         else if (recentSlowBlinks >= 3 || recentYawns >= 2 || (recentYawns >= 1 && recentSlowBlinks >= 2)) {
             riskLevel = 'Moderado';
             
-            // Si veníamos de alto riesgo, apagamos esa alarma específica
             if (!microsleepTriggered && alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
@@ -339,12 +326,11 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             lastModerateTimestamp = now;
         } 
 
-        // C. NORMAL
+        // C. LEVE (NUEVO: Aquí definimos el umbral)
         else {
-            if (totalBlinksLastMinute > 25) riskLevel = 'Leve'; 
+            if (totalBlinksLastMinute > 20) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
 
-            // Apagar alarmas si ya pasó el peligro y abrió los ojos
             if (!microsleepTriggered) {
                 if (alarmAudio && !alarmAudio.paused) {
                     alarmAudio.pause();
@@ -365,7 +351,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             canvasCtx.restore();
         }
 
-        // --- ENVÍO PERIÓDICO (CAPTURA CADA MINUTO) ---
+        // =========================================================================
+        // ENVÍO PERIÓDICO (CAPTURA CADA MINUTO)
+        // =========================================================================
         const currentMinute = Math.floor(now / 60000);
         if (currentMinute > lastCaptureMinute && sessionId) {
             
@@ -374,6 +362,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             if (riskLevel === 'Moderado') prob = 0.7;
             if (riskLevel === 'Alto riesgo') prob = 1.0;
 
+            // 1. Guardamos la captura (siempre)
             sendDetectionEvent({
                 type: 'CAPTURA',
                 sessionId,
@@ -386,6 +375,19 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 totalYawns: yawnCountTotal
             });
 
+            // 2. NUEVO: Si es 'Leve', también lo guardamos en ALERTAS para que salga en el historial
+            if (riskLevel === 'Leve') {
+                console.log("📝 Registrando Fatiga Leve en historial...");
+                sendDetectionEvent({
+                    type: 'ALERTA',
+                    sessionId,
+                    blinkRate: totalBlinksLastMinute,
+                    ear: smoothedEAR,
+                    riskLevel: 'Leve',
+                    immediate: false
+                });
+            }
+
             lastCaptureMinute = currentMinute;
         }
 
@@ -393,7 +395,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             <p style="font-size:14px">Parpadeos/min: ${totalBlinksLastMinute}</p>
             <p style="font-size:14px">P. Lentos (1min): ${recentSlowBlinks} (Min: 3)</p>
             <p style="font-size:14px">Bostezos (1min): ${recentYawns} (Min: 2)</p>
-            <p style="font-weight:bold; color:${riskLevel === 'Normal' ? '#4ade80' : '#fbbf24'}">Estado: ${riskLevel}</p>
+            <p style="font-weight:bold; color:${riskLevel === 'Normal' ? '#4ade80' : riskLevel === 'Leve' ? '#facc15' : riskLevel === 'Moderado' ? '#fbbf24' : '#ef4444'}">Estado: ${riskLevel}</p>
         `;
     });
 
@@ -447,7 +449,7 @@ async function sendDetectionEvent({
         if (type === 'CAPTURA') {
             const { error } = await supabase.from('Capturas').insert([captureData]);
             if (error) console.error('Error guardando Captura:', error.message);
-            else console.log("💾 Captura periódica guardada");
+            else console.log(`💾 Captura periódica guardada (${riskLevel})`);
         } 
         
         else if (type === 'ALERTA') {
@@ -464,24 +466,32 @@ async function sendDetectionEvent({
 
             const relatedCaptureId = snapshotData[0].id_captura;
 
+            // Lógica de Causas para la Base de Datos
             let causa = "Fatiga General";
             let valor = probabilidad;
 
             if (riskLevel === 'Alto riesgo') { 
                 causa = "Microsueño"; 
-                // AQUI USAMOS EL VALOR REAL QUE LLEGA AL ABRIR LOS OJOS
                 valor = realDuration > 0 ? parseFloat(realDuration.toFixed(2)) : 2.0; 
             }
-            else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
-            else if (slowBlinks >= 2) { 
+            else if (yawnDetected) { 
+                causa = "Bostezos"; 
+                valor = parseFloat(totalYawns); 
+            }
+            else if (riskLevel === 'Moderado' && slowBlinks >= 2) { 
                 causa = "Somnolencia"; 
                 valor = parseFloat(slowBlinks); 
+            }
+            // NUEVO: Caso específico para LEVE
+            else if (riskLevel === 'Leve') {
+                causa = "Fatiga Ocular"; // Nombre que aparecerá en historial
+                valor = parseFloat(blinkRate); // Valor: cantidad de parpadeos
             }
 
             const { error: alertError } = await supabase.from('Alertas').insert([{
                 id_sesion: sessionId,
                 id_captura: relatedCaptureId,
-                tipo_alerta: "Sonora/Visual",
+                tipo_alerta: riskLevel === 'Leve' ? "Registro Silencioso" : "Sonora/Visual",
                 nivel_riesgo: riskLevel,
                 causa_detonante: causa,
                 valor_medido: valor,
