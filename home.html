@@ -307,9 +307,9 @@
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: 0, // Sin puntos normales para limpiar la vista
-                        pointHitRadius: 20, // Área táctil invisible GRANDE
-                        pointHoverRadius: 4, // Aparece al tocar
+                        pointRadius: 0, 
+                        pointHitRadius: 50, // <--- CAMPO DE DETECCIÓN GIGANTE
+                        pointHoverRadius: 4, 
                         fill: true 
                     },
                     {
@@ -320,7 +320,7 @@
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
                         pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 20,
+                        pointHitRadius: 50, // <--- FACILITA EL CLICK
                         fill: true
                     },
                     {
@@ -331,7 +331,7 @@
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
                         pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 20,
+                        pointHitRadius: 50, // <--- FACILITA EL CLICK
                         fill: true
                     },
                     {
@@ -342,7 +342,7 @@
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
                         pointRadius: isMobile ? 2 : 3,
-                        pointHitRadius: 20,
+                        pointHitRadius: 50, // <--- FACILITA EL CLICK
                         fill: true
                     }
                 ]
@@ -354,25 +354,26 @@
                 
                 // MEJORA DE INTERACCIÓN TÁCTIL
                 interaction: {
-                    mode: 'index',     // Muestra todos los datos de ese día
-                    intersect: false,  // ¡CLAVE! No hace falta tocar el punto exacto, solo la línea vertical
-                    axis: 'x'          // Facilita el barrido horizontal con el dedo
+                    mode: 'index',     
+                    intersect: false,  // CRUCIAL: No obliga a tocar el punto exacto
+                    axis: 'x'          // Permite deslizar el dedo horizontalmente
                 },
 
                 layout: {
-                    padding: { top: 10, left: 0, right: 10, bottom: 0 }
+                    padding: { top: 5, left: 0, right: 10, bottom: 0 }
                 },
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
-                            font: { size: isMobile ? 9 : 11 },
+                            font: { size: isMobile ? 10 : 11 }, // Letra pequeña en eje X
                             maxRotation: 0, 
                             minRotation: 0,
-                            autoSkip: false, // <--- ¡CLAVE! OBLIGA A MOSTRAR TODOS LOS DÍAS
+                            autoSkip: true, // <--- REGRESAMOS A OCULTAR DÍAS PARA LIMPIEZA
+                            maxTicksLimit: isMobile ? 8 : 20, // Muestra máximo 8 fechas en móvil
                             callback: function(val, index) {
                                 const label = this.getLabelForValue(val);
-                                return isMobile ? label.split('-')[2] : label; // Solo día en móvil
+                                return isMobile ? label.split('-')[2] : label; 
                             }
                         },
                         grid: { color: '#334155', drawBorder: false }
@@ -383,9 +384,9 @@
                         stacked: false,
                         ticks: { 
                             color: '#94a3b8',
-                            font: { size: isMobile ? 9 : 11 },
+                            font: { size: 9 }, // Letra pequeña en eje Y
                             callback: v => v + "%",
-                            maxTicksLimit: 6 
+                            maxTicksLimit: 5 
                         },
                         grid: { color: '#334155', drawBorder: false },
                         title: { display: !isMobile, text: 'Tiempo de Viaje', color: '#cbd5e1' }
@@ -393,18 +394,14 @@
                 },
                 plugins: {
                     legend: {
-                        // AJUSTE DE TAMAÑO DE LEYENDA
+                        // AQUÍ ARREGLAMOS LOS BOTONES DE ARRIBA
                         labels: { 
                             color: '#fff', 
                             usePointStyle: true, 
-                            // Icono (cuadrito) mucho más pequeño
-                            boxWidth: isMobile ? 6 : 10, 
-                            // Texto más pequeño
-                            font: { size: isMobile ? 10 : 12 }, 
-                            // Menos espacio entre items
-                            padding: isMobile ? 10 : 20 
+                            boxWidth: 8,    // Icono pequeño
+                            font: { size: 10 }, // <--- FUENTE PEQUEÑA REAL
+                            padding: 25     // <--- MUCHA SEPARACIÓN (Evita clicks erróneos)
                         },
-                        // Permitir clicks en la leyenda
                         onClick: function(e, legendItem, legend) {
                             const index = legendItem.datasetIndex;
                             const ci = legend.chart;
@@ -424,9 +421,7 @@
                         bodyFont: { size: 12 },
                         padding: 10,
                         cornerRadius: 6,
-                        displayColors: true, // Muestra el colorcito en el tooltip
-                        boxWidth: 8,
-                        boxHeight: 8,
+                        displayColors: true,
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
@@ -439,11 +434,13 @@
             }
         });
 
-        // Auto-scroll inicial a la derecha
+        // Auto-scroll inicial a la derecha (Solo si hay scrollbar visible)
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
-                if (scrollWrapper) scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+                if (scrollWrapper && scrollWrapper.scrollWidth > scrollWrapper.clientWidth) {
+                    scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+                }
             }, 100);
         }
     }
