@@ -207,7 +207,7 @@
     });
 
     async function loadChartData(userId) {
-        // Rango: Últimos 30 días (para que se vean mejor los puntos)
+        // Rango: Últimos 30 días
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
@@ -225,16 +225,17 @@
             return;
         }
 
-        // 2. Obtener CAPTURAS (Datos minuto a minuto)
+        // 2. Obtener CAPTURAS
         const { data: capturas, error } = await supabase
             .from('Capturas')
             .select('hora_captura, nivel_riesgo_calculado')
             .in('id_sesion', sessionIds)
             .gte('hora_captura', startDate.toISOString())
-            .order('hora_captura', { ascending: true });
+            .order('hora_captura', { ascending: true })
+            .limit(10000); // <--- ¡AQUÍ ESTÁ LA SOLUCIÓN! (Aumentamos el límite)
 
         if (error) {
-            console.error("Error gráfico:", error);
+            console.error("Error cargando gráfico:", error);
             return;
         }
 
