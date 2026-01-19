@@ -279,26 +279,22 @@ canvas {
   overflow-y: hidden;
 }
 
-/* MÓVIL: Ajustes drásticos para que se vea bien */
 @media (max-width: 768px) {
   .chart-container {
-    padding: 10px 5px; /* Aprovechar más espacio lateral */
+    padding: 10px 0px; /* Quitamos padding lateral para ganar ancho */
   }
 
   .chart-scroll-wrapper {
-    /* En móvil 550px es demasiado alto (ocupa toda la pantalla), 
-       lo bajamos a 350px para mantener proporción */
-    height: 350px; 
+    /* Aumentamos de 350px a 420px para que la gráfica respire */
+    height: 420px; 
     
-    /* Habilitamos el deslizamiento con el dedo */
     overflow-x: auto; 
-    -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
+    -webkit-overflow-scrolling: touch;
   }
 
   .chart-scroll-wrapper canvas {
-    /* TRUCO: Forzamos que la gráfica sea MUY ancha internamente.
-       Así los puntos de los 30 días quedan separados y elegantes. */
-    min-width: 1000px; 
+    /* Mantenemos el ancho extendido para el scroll */
+    min-width: 900px; 
     height: 100% !important;
   }
 }

@@ -289,25 +289,25 @@
 
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
+        
+        // Detectar si es móvil para condicionales
+        const isMobile = window.innerWidth < 768;
 
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
-            // ... (TODA TU CONFIGURACIÓN DEL GRÁFICO SE QUEDA IGUAL) ...
             type: 'line',
-            data: { 
-                // ... tus datos ...
+            data: {
                 labels: labels,
-                datasets: [ 
-                    // ... tus datasets (Normal, Fatiga, Somnolencia, Microsueño) ...
+                datasets: [
                     {
                         label: 'Normal (%)',
                         data: dNormal,
                         borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                        borderWidth: 2,
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: isMobile ? 1.5 : 2, // Líneas más finas en móvil
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: isMobile ? 3 : 4,   // Puntos más pequeños en móvil
                         pointBackgroundColor: '#10b981',
                         fill: true 
                     },
@@ -316,9 +316,9 @@
                         data: dLeve,
                         borderColor: '#facc15',
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
-                        borderWidth: 2,
+                        borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: isMobile ? 3 : 4,
                         pointBackgroundColor: '#facc15',
                         fill: true
                     },
@@ -327,9 +327,9 @@
                         data: dModerado,
                         borderColor: '#f97316',
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
-                        borderWidth: 2,
+                        borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: isMobile ? 3 : 4,
                         pointBackgroundColor: '#f97316',
                         fill: true
                     },
@@ -338,9 +338,9 @@
                         data: dAlto,
                         borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderWidth: 2,
+                        borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: isMobile ? 3 : 4,
                         pointBackgroundColor: '#ef4444',
                         fill: true
                     }
@@ -349,25 +349,80 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                resizeDelay: 200, // IMPORTANTE PARA MOVIL
+                resizeDelay: 200,
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 0,
+                        left: 0,
+                        right: 10
+                    }
+                },
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155', drawBorder: false } },
+                    x: {
+                        ticks: { 
+                            color: '#94a3b8', 
+                            // TRUCO DE ESPACIO:
+                            // En móvil forzamos rotación 0 (horizontal) y cortamos la fecha
+                            maxRotation: isMobile ? 0 : 45, 
+                            minRotation: isMobile ? 0 : 45,
+                            callback: function(val, index) {
+                                // Obtener la etiqueta original (ej: "2026-01-19")
+                                const label = this.getLabelForValue(val);
+                                // Si es móvil, devolver solo el día ("19") para ahorrar altura
+                                if (isMobile) {
+                                    return label.split('-')[2]; 
+                                }
+                                return label;
+                            }
+                        },
+                        grid: { color: '#334155', drawBorder: false }
+                    },
                     y: {
                         beginAtZero: true,
                         max: 100,
                         stacked: false,
-                        ticks: { color: '#94a3b8', callback: v => v + "%" },
+                        ticks: { 
+                            color: '#94a3b8',
+                            font: { size: 10 }, // Fuente más pequeña en eje Y
+                            callback: v => v + "%" 
+                        },
                         grid: { color: '#334155', drawBorder: false },
-                        title: { display: true, text: 'Tiempo de Viaje', color: '#cbd5e1' } // Título más corto
+                        title: { 
+                            // OCULTAMOS título del eje Y en móvil para ganar espacio lateral
+                            display: !isMobile, 
+                            text: 'Tiempo de Viaje', 
+                            color: '#cbd5e1' 
+                        }
                     }
                 },
                 plugins: {
-                    legend: { labels: { color: '#fff', usePointStyle: true, boxWidth: 8, padding: 20 } },
+                    legend: {
+                        // En móvil, la leyenda ocupa menos espacio
+                        labels: { 
+                            color: '#fff', 
+                            usePointStyle: true, 
+                            boxWidth: 8, 
+                            padding: 10,
+                            font: { size: 11 } 
+                        }
+                    },
+                    title: {
+                        // CRUCIAL: Ocultamos el título INTERNO en móvil. 
+                        // Ya tienes un <h2> afuera que dice lo mismo. Esto ahorra 30px de altura.
+                        display: !isMobile, 
+                        text: 'Distribución Diaria',
+                        color: '#cbd5e1',
+                        padding: { bottom: 10 }
+                    },
                     tooltip: {
-                         // ... tu config de tooltip ...
-                         backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                         callbacks: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
                                 if (label) label = label.replace(' (%)', '') + ': ';
@@ -380,16 +435,15 @@
             }
         });
 
-        // ============================================================
-        //  NUEVO: Auto-scroll a la derecha en móviles
-        // ============================================================
-        setTimeout(() => {
-            const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
-            if (scrollWrapper) {
-                // Mueve la barra de desplazamiento al final (derecha)
-                scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
-            }
-        }, 100); // Pequeña pausa para asegurar que el canvas se renderizó
+        // Auto-scroll a la derecha en móviles
+        if (isMobile) {
+            setTimeout(() => {
+                const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
+                if (scrollWrapper) {
+                    scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+                }
+            }, 100);
+        }
     }
 
     function renderEmptyChart() {
