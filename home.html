@@ -293,25 +293,28 @@
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
+            // ... (TODA TU CONFIGURACIÓN DEL GRÁFICO SE QUEDA IGUAL) ...
             type: 'line',
-            data: {
+            data: { 
+                // ... tus datos ...
                 labels: labels,
-                datasets: [
+                datasets: [ 
+                    // ... tus datasets (Normal, Fatiga, Somnolencia, Microsueño) ...
                     {
                         label: 'Normal (%)',
                         data: dNormal,
-                        borderColor: '#10b981', // Verde Original
-                        backgroundColor: 'rgba(16, 185, 129, 0.2)', // Fondo muy sutil
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
                         borderWidth: 2,
-                        tension: 0.4, // Curvas suaves
-                        pointRadius: 4, // Puntos visibles
+                        tension: 0.4,
+                        pointRadius: 4,
                         pointBackgroundColor: '#10b981',
                         fill: true 
                     },
                     {
                         label: 'Fatiga (%)',
                         data: dLeve,
-                        borderColor: '#facc15', // Amarillo Original
+                        borderColor: '#facc15',
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
                         borderWidth: 2,
                         tension: 0.4,
@@ -322,7 +325,7 @@
                     {
                         label: 'Somnolencia (%)',
                         data: dModerado,
-                        borderColor: '#f97316', // Naranja Original
+                        borderColor: '#f97316',
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
                         borderWidth: 2,
                         tension: 0.4,
@@ -333,7 +336,7 @@
                     {
                         label: 'Microsueño (%)',
                         data: dAlto,
-                        borderColor: '#ef4444', // Rojo Original
+                        borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         borderWidth: 2,
                         tension: 0.4,
@@ -345,62 +348,30 @@
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Permite que use la altura del CSS
-                resizeDelay: 200, // <--- NUEVO: Espera 200ms antes de redibujar (Evita crash en móvil)
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
+                maintainAspectRatio: false,
+                resizeDelay: 200, // IMPORTANTE PARA MOVIL
+                interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: {
-                        ticks: { 
-                            color: '#94a3b8', 
-                            maxRotation: 45, 
-                            minRotation: 45,
-                            // NUEVO: En móvil, saltar etiquetas si hay muchas
-                            autoSkip: true,
-                            maxTicksLimit: 10 
-                        },
-                        grid: { color: '#334155', drawBorder: false }
-                    },
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155', drawBorder: false } },
                     y: {
                         beginAtZero: true,
                         max: 100,
                         stacked: false,
-                        ticks: { 
-                            color: '#94a3b8',
-                            callback: function(value) { return value + "%" } 
-                        },
+                        ticks: { color: '#94a3b8', callback: v => v + "%" },
                         grid: { color: '#334155', drawBorder: false },
-                        title: {
-                            display: true, // A veces en móvil es mejor ocultar el título para ganar espacio
-                            text: 'Tiempo (%)', // Texto más corto para móvil
-                            color: '#cbd5e1'
-                        }
+                        title: { display: true, text: 'Tiempo de Viaje', color: '#cbd5e1' } // Título más corto
                     }
                 },
                 plugins: {
-                    legend: {
-                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 },
-                        position: 'top', // Asegura que la leyenda esté arriba
-                        align: 'center'
-                    },
+                    legend: { labels: { color: '#fff', usePointStyle: true, boxWidth: 8, padding: 20 } },
                     tooltip: {
-                        // ... (tu configuración de tooltip actual está bien)
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        titleColor: '#fff',
-                        bodyColor: '#cbd5e1',
-                        borderColor: '#334155',
-                        borderWidth: 1,
-                        callbacks: {
+                         // ... tu config de tooltip ...
+                         backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toFixed(1) + '%';
-                                }
+                                if (label) label = label.replace(' (%)', '') + ': ';
+                                if (context.parsed.y !== null) label += context.parsed.y.toFixed(1) + '%';
                                 return label;
                             }
                         }
@@ -408,6 +379,17 @@
                 }
             }
         });
+
+        // ============================================================
+        //  NUEVO: Auto-scroll a la derecha en móviles
+        // ============================================================
+        setTimeout(() => {
+            const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
+            if (scrollWrapper) {
+                // Mueve la barra de desplazamiento al final (derecha)
+                scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+            }
+        }, 100); // Pequeña pausa para asegurar que el canvas se renderizó
     }
 
     function renderEmptyChart() {

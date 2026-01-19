@@ -250,50 +250,55 @@ canvas {
 }
 
 /* ==========================================================================
-   GRÁFICAS – CHART (CORREGIDO)
+   GRÁFICAS – CHART (AJUSTADO: ESCRITORIO GRANDE / MÓVIL SCROLL)
    ========================================================================== */
 .chart-container {
   position: relative;
   width: 100%;
   max-width: 100%;
   background: #1e293b;
-  padding: 15px; /* Ajustado para que no toque los bordes */
+  padding: 15px;
   border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  box-shadow: 0 0 15px rgba(0,0,0,0.4);
   margin-bottom: 25px;
-  box-sizing: border-box; /* Importante para respetar paddings */
+  box-sizing: border-box; 
 }
 
-/* El canvas debe llenar el contenedor, NO tener auto height */
+/* El canvas siempre llena a su contenedor padre */
 .chart-container canvas {
   width: 100% !important;
-  height: 100% !important; /* Cambio clave: Llenar la altura del padre */
+  height: 100% !important;
 }
 
-/* Scroll horizontal para gráficas */
+/* ESCRITORIO: Altura solicitada de 550px */
 .chart-scroll-wrapper {
-  position: relative; /* Necesario para Chart.js */
+  position: relative;
   width: 100%;
-  height: 350px; /* <--- ALTURA FIJA OBLIGATORIA PARA ESCRITORIO */
-  overflow-x: auto;
+  height: 550px; /* <--- TU PEDIDO: GRÁFICA ALTA EN PC */
+  overflow-x: hidden; /* En PC no suele necesitar scroll si la pantalla es ancha */
   overflow-y: hidden;
-  touch-action: pan-x;
-  -webkit-overflow-scrolling: touch;
 }
 
+/* MÓVIL: Ajustes drásticos para que se vea bien */
 @media (max-width: 768px) {
   .chart-container {
-    padding: 10px; /* Menos padding en móvil */
+    padding: 10px 5px; /* Aprovechar más espacio lateral */
   }
 
   .chart-scroll-wrapper {
-    height: 300px; /* <--- ALTURA FIJA OBLIGATORIA PARA MÓVIL */
+    /* En móvil 550px es demasiado alto (ocupa toda la pantalla), 
+       lo bajamos a 350px para mantener proporción */
+    height: 350px; 
+    
+    /* Habilitamos el deslizamiento con el dedo */
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
   }
 
   .chart-scroll-wrapper canvas {
-    /* Forzamos un ancho mínimo para que el usuario pueda hacer scroll horizontal
-       y ver los 30 días con claridad, en lugar de apretarlos todos. */
-    min-width: 800px; 
+    /* TRUCO: Forzamos que la gráfica sea MUY ancha internamente.
+       Así los puntos de los 30 días quedan separados y elegantes. */
+    min-width: 1000px; 
     height: 100% !important;
   }
 }
