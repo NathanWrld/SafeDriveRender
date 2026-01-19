@@ -1,6 +1,5 @@
 // detection.js
-// SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN FINAL: Terminología corregida (Somnolencia)
+// SISTEMA DE DETECCIÓN: LÓGICA DE TIEMPO TOTAL REAL
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -68,7 +67,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let dynamicMARBaseline = 0.65;
 
     let lastModerateTimestamp = 0;
-    let microsleepTriggered = false;
+    let microsleepTriggered = false; // Bandera para saber si estamos en medio de una alarma
     let yawnFrameCounter = 0;
 
     // ===============================
@@ -179,7 +178,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
-        // --- LÓGICA DE OJOS ---
+        // =========================================================================
+        // LÓGICA PRINCIPAL DE OJOS (AQUI ESTÁ EL CAMBIO)
+        // =========================================================================
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
         if (consideredClosed) {
@@ -194,19 +195,44 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 eyeState = 'closed';
             }
         } else {
+            // El usuario está abriendo los ojos (o parpadeando)
             reopenGraceCounter++;
+            
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
                 if (eyeState === 'closed') {
-                    const duration = closedFrameCounter / FPS;
-                    if (duration > MIN_SLOW_BLINK_DURATION && duration < MICROSUEÑO_THRESHOLD) {
-                        slowBlinksBuffer.push(Date.now());
-                        console.log(`🐢 Parpadeo Lento: ${duration.toFixed(2)}s`);
+                    // --- EVENTO: LOS OJOS SE ACABAN DE ABRIR ---
+                    const totalClosedDuration = closedFrameCounter / FPS;
+                    
+                    // 1. SI FUE UN MICROSUEÑO (La alarma ya estaba sonando)
+                    if (microsleepTriggered) {
+                        console.log(`🚨 Microsueño finalizado. Duración total: ${totalClosedDuration.toFixed(2)}s`);
+                        
+                        // Guardamos en BD AHORA con el tiempo total real
+                        sendDetectionEvent({
+                            type: 'ALERTA',
+                            sessionId,
+                            blinkRate: totalBlinksLastMinute, // Usamos variables del scope exterior
+                            ear: smoothedEAR,
+                            riskLevel: 'Alto riesgo',
+                            immediate: true,
+                            realDuration: totalClosedDuration // <--- AQUI VA EL TIEMPO TOTAL
+                        });
+
+                        microsleepTriggered = false; // Reset bandera
+                        // La alarma se apagará más abajo en la lógica de niveles
                     }
+                    
+                    // 2. SI FUE UN PARPADEO LENTO (Sin alarma previa)
+                    else if (totalClosedDuration > MIN_SLOW_BLINK_DURATION && totalClosedDuration < MICROSUEÑO_THRESHOLD) {
+                        slowBlinksBuffer.push(Date.now());
+                        console.log(`🐢 Parpadeo Lento: ${totalClosedDuration.toFixed(2)}s`);
+                    }
+
                     blinkTimestamps.push(Date.now());
                     eyeState = 'open';
                 }
+                
                 closedFrameCounter = 0;
-                microsleepTriggered = false;
             }
         }
 
@@ -236,15 +262,16 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const recentSlowBlinks = slowBlinksBuffer.length;
         const recentYawns = yawnsBuffer.length;
 
-        // --- RIESGO ---
+        // --- GESTIÓN DE RIESGO Y ALARMAS ---
         let riskLevel = 'Normal';
-        const closureDuration = closedFrameCounter / FPS;
+        const closureDuration = closedFrameCounter / FPS; // Tiempo actual cerrado (en vivo)
         const popupContent = document.getElementById('popupTextContent');
 
-        // A. ALTO RIESGO
+        // A. ALTO RIESGO (MICROSUEÑO EN PROGRESO)
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             
+            // Activamos UI y Sonido INMEDIATAMENTE
             warningPopup.className = "warning-popup alert-red active";
             if (popupContent) {
                 popupContent.innerHTML = `<h3>🚨 ¡PELIGRO! 🚨</h3><p>Mantenga los ojos abiertos.</p>`;
@@ -255,17 +282,10 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 alarmAudio.play().catch(e => console.log(e));
             }
 
+            // Marcamos que hay un evento en curso, PERO NO GUARDAMOS AUN en BD
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
-                sendDetectionEvent({
-                    type: 'ALERTA',
-                    sessionId,
-                    blinkRate: totalBlinksLastMinute,
-                    ear: smoothedEAR,
-                    riskLevel,
-                    immediate: true,
-                    realDuration: closureDuration
-                });
+                console.log("⚠️ Alerta activada (esperando a que abra los ojos para guardar...)");
             }
         } 
         
@@ -273,7 +293,8 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         else if (recentSlowBlinks >= 3 || recentYawns >= 2 || (recentYawns >= 1 && recentSlowBlinks >= 2)) {
             riskLevel = 'Moderado';
             
-            if (alarmAudio && !alarmAudio.paused) {
+            // Si veníamos de alto riesgo, apagamos esa alarma específica
+            if (!microsleepTriggered && alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
             }
@@ -289,7 +310,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 }
 
                 if (popupContent) {
-                    // CAMBIO AQUI: Texto más natural
                     let razon = recentYawns >= 2 ? "Bostezos frecuentes." : "Somnolencia detectada.";
                     warningPopup.className = moderateWarningCount >= 3 ? "warning-popup alert-red active" : "warning-popup alert-orange active";
                     popupContent.innerHTML = moderateWarningCount >= 3 
@@ -323,12 +343,15 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             if (totalBlinksLastMinute > 25) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
 
-            if (alarmAudio && !alarmAudio.paused) {
-                alarmAudio.pause();
-                alarmAudio.currentTime = 0;
-            }
-            if (!moderateAlertCooldown && riskLevel === 'Normal') {
-                 warningPopup.classList.remove('active');
+            // Apagar alarmas si ya pasó el peligro y abrió los ojos
+            if (!microsleepTriggered) {
+                if (alarmAudio && !alarmAudio.paused) {
+                    alarmAudio.pause();
+                    alarmAudio.currentTime = 0;
+                }
+                if (!moderateAlertCooldown && riskLevel === 'Normal') {
+                     warningPopup.classList.remove('active');
+                }
             }
         }
 
@@ -445,11 +468,11 @@ async function sendDetectionEvent({
 
             if (riskLevel === 'Alto riesgo') { 
                 causa = "Microsueño"; 
+                // AQUI USAMOS EL VALOR REAL QUE LLEGA AL ABRIR LOS OJOS
                 valor = realDuration > 0 ? parseFloat(realDuration.toFixed(2)) : 2.0; 
             }
             else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
             else if (slowBlinks >= 2) { 
-                // CAMBIO AQUI: "Somnolencia" en lugar de "Parpadeos Lentos"
                 causa = "Somnolencia"; 
                 valor = parseFloat(slowBlinks); 
             }
