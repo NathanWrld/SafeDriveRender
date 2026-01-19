@@ -1,6 +1,12 @@
 /* ==========================================================================
    VARIABLES Y TEMAS
    ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 :root {
   /* TEMA OSCURO (Por defecto) */
   --bg-body: #0f172a;
@@ -72,7 +78,11 @@ h1, h2 {
   padding-top: 20px;
   box-shadow: 2px 0 15px rgba(0,0,0,0.1);
   transition: 0.35s ease;
-  z-index: 1600;
+  z-index: 2000; /* Asegura que esté encima */
+  
+  /* --- NUEVO PARA MÓVIL --- */
+  overflow-y: auto; /* Permite bajar si la pantalla es pequeña */
+  -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
 }
 
 .sidebar h2 {
@@ -102,7 +112,7 @@ h1, h2 {
 /* Botón cerrar sesión y footer */
 .sidebar-footer {
     margin-top: auto;
-    padding-bottom: 20px;
+    padding-bottom: 40px; /* Aumentado de 20px a 40px para evitar bordes de móvil */
     width: 100%;
 }
 
