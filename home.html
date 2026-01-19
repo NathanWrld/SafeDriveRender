@@ -368,19 +368,24 @@
                         ticks: { 
                             color: '#94a3b8', 
                             font: { size: isMobile ? 10 : 11 },
-                            maxRotation: 0, 
                             
-                            // AQUÍ ESTÁ EL CAMBIO "UNO SÍ, UNO NO":
-                            autoSkip: false, // Desactivamos el automático para controlarlo nosotros
+                            // --- SOLUCIÓN ESCRITORIO ---
+                            // Si NO es móvil, forzamos rotación 45 grados (como te gustaba).
+                            // Si ES móvil, dejamos 0 grados (horizontal) para leer mejor.
+                            minRotation: isMobile ? 0 : 45, 
+                            maxRotation: isMobile ? 0 : 45,
                             
-                            callback: function(val, index) {
-                                // Si el índice es par (0, 2, 4...), mostramos la etiqueta
-                                if (index % 2 === 0) {
-                                    const label = this.getLabelForValue(val);
-                                    return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
-                                }
-                                // Si es impar (1, 3, 5...), devolvemos null para ocultarlo
-                                return null; 
+                            // --- SOLUCIÓN "PEGADAS" ---
+                            // autoSkip: true -> Chart.js ocultará etiquetas automáticamente si detecta
+                            // que se van a superponer. Esto evita que se vean pegadas.
+                            autoSkip: true, 
+                            autoSkipPadding: 10, // Espacio mínimo entre fechas
+                            maxTicksLimit: isMobile ? 12 : 31, // En móvil limita un poco, en PC muestra todo lo posible
+                            
+                            callback: function(val) {
+                                const label = this.getLabelForValue(val);
+                                // En móvil simplificamos la fecha (19/01)
+                                return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
                             }
                         },
                         grid: { 
