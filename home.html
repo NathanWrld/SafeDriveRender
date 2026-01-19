@@ -1,183 +1,3 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard – Sistema de Detección de Astenia</title>
-<link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-</head>
-
-<body>
-<header class="top-header">
-    <div class="header-left">
-        <img src="logo.png" alt="Logo" class="logo">
-        <div class="burger" id="burgerBtn">☰</div>
-    </div>
-</header>
-
-<div class="content">
-    <div id="overlay" class="overlay"></div>
-
-    <div class="sidebar" id="sidebar">
-        <h2>Panel Principal</h2>
-        <a class="menu-btn active" data-target="inicio">Inicio</a>
-        <a class="menu-btn" data-target="deteccion">Detección en Tiempo Real</a>
-        <a class="menu-btn" data-target="usuarios">Gestión de Usuario</a>
-        <a class="menu-btn" data-target="historial">Historial</a>
-        <a href="#" id="logoutBtn">Cerrar Sesión</a>
-    </div>
-
-    <div id="closeSidebar" class="close-sidebar">✕</div>
-
-    <div class="main normal-container">
-        
-        <section id="inicio" class="card">
-            <h2>Tendencia Mensual de Conducción</h2>
-            <div class="chart-container">
-                <div class="chart-scroll-wrapper">
-                    <canvas id="fatigueChart"></canvas> 
-                </div>
-            </div>
-            <p>Evolución de los minutos acumulados por estado en los últimos 30 días.</p>
-            <div id="chartLegendInfo" style="margin-top:10px; font-size: 0.9em; color: #cbd5e1;">
-                <p>💡 <strong>Guía:</strong> 
-                <span style="color:#10b981">● Normal</span> (Conducción segura), 
-                <span style="color:#facc15">● Fatiga Leve</span> (Cansancio ocular), 
-                <span style="color:#f97316">● Somnolencia</span> (Peligro moderado), 
-                <span style="color:#ef4444">● Microsueño</span> (Peligro crítico).</p>
-            </div>
-        </section>
-
-
-        <section id="deteccion" class="card" style="display:none;">
-            <h2>Detección en Tiempo Real</h2>
-            <div class="cam-container" id="camFeed">
-                <video id="camaraNormal" class="input_video" autoplay playsinline style="display:none;"></video>
-                <canvas id="camaraAvanzada" class="output_canvas"></canvas>
-            </div>
-            <div class="btn-detection-container">
-                <div id="estado">
-                    <p>Presiona "Iniciar Detección" para comenzar.</p>
-                </div>
-                <button id="startDetection" class="primary-button">Iniciar Detección</button>
-                <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
-            </div>
-        </section>
-
-
-        <section id="usuarios" class="card" style="display:none;">
-            <h2 style="margin-bottom:20px; text-align:center;">Mi Perfil</h2>
-            <form id="editProfileForm">
-                <div class="form-group">
-                    <label for="userName">Nombre:</label>
-                    <input type="text" id="userName" name="userName" required>
-                </div>
-                <div class="form-group">
-                    <label for="userEmail">Email:</label>
-                    <input type="email" id="userEmail" name="userEmail" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="newPassword">Nueva Contraseña:</label>
-                    <input type="password" id="newPassword" name="newPassword" autocomplete="new-password">
-                </div>
-                <div class="form-group">
-                    <label for="repeatPassword">Repetir Contraseña:</label>
-                    <input type="password" id="repeatPassword" name="repeatPassword">
-                </div>
-                <div class="form-group">
-                    <label for="currentPassword">Contraseña Actual:</label>
-                    <input type="password" id="currentPassword" name="currentPassword" required autocomplete="current-password">
-                </div>
-                <div id="profileMessage"></div>
-                <button type="submit" class="primary-button">Guardar Cambios</button>
-            </form>
-        </section>
-
-
-       <section id="historial" class="card" style="display:none;">
-            <h2>Historial de Alertas</h2>
-
-            <div class="history-filters">
-                <div class="filter-wrapper">
-                    <div class="filter-item">
-                        <label for="filterDate">Fecha:</label>
-                        <input type="date" id="filterDate">
-                    </div>
-
-                    <div class="filter-item">
-                        <label for="filterType">Causa:</label>
-                        <select id="filterType">
-                            <option value="">Todas</option>
-                            <option value="Microsueño">Microsueño</option>
-                            <option value="Bostezos">Bostezos</option>
-                            <option value="Somnolencia">Somnolencia</option> 
-                            <option value="Fatiga">Fatiga</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-item">
-                        <label for="filterLevel">Nivel:</label>
-                        <select id="filterLevel">
-                            <option value="">Todos</option>
-                            <option value="Leve">Leve</option>
-                            <option value="Moderado">Moderado</option>
-                            <option value="Alto riesgo">Alto riesgo</option>
-                        </select>
-                    </div>
-
-                    <button id="applyFilters" class="primary-button">Filtrar</button>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Causa Detectada</th>
-                            <th>Nivel de Riesgo</th>
-                            <th>Valor Medido</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTable">
-                        <tr><td colspan="4" style="text-align:center;">Cargando datos...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="pagination">
-                <button class="page-btn" id="prevPage">
-                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                </button>
-                <span id="pageInfo">Página 1</span>
-                <button class="page-btn" id="nextPage">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </button>
-            </div>
-        </section>
-
-    </div>
-</div>
-
-<audio id="alarmSound" loop preload="auto">
-    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-</audio>
-<audio id="notifySound" preload="auto">
-    <source src="https://assets.mixkit.co/active_storage/sfx/2344/2344-preview.mp3" type="audio/mpeg">
-</audio>
-<div id="warningPopup" class="warning-popup alert-orange">
-    <div class="warning-content" id="popupTextContent"></div>
-</div>
-
-<script type="module" src="script.js"></script>
-<script src="burger-btn.js"></script>
-
 <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -186,31 +6,33 @@
     const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Variables globales del gráfico
+    // Variables globales
     let myChart = null;
 
     // Inicializar
     async function initDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+            currentUserId = user.id; // Guardamos para el historial
             loadChartData(user.id);
+            fetchHistory(1); // Cargar también el historial
         }
     }
 
-    // Navegación Sidebar (Recargar gráfico al volver a Inicio)
+    // Recargar gráfico al volver a la pestaña Inicio
     document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
-        const chartCanvas = document.getElementById('fatigueChart');
         if(myChart) myChart.resize(); 
-        initDashboard();
+        // Opcional: recargar datos frescos
+        // loadChartData(currentUserId); 
     });
 
     async function loadChartData(userId) {
-        // 1. Calcular rango de fechas (Últimos 30 días)
+        // Rango: Últimos 15 días (para que se vean mejor los puntos)
         const endDate = new Date();
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30);
+        startDate.setDate(startDate.getDate() - 15);
 
-        // 2. Obtener sesiones del usuario
+        // 1. Obtener sesiones
         const { data: sesiones } = await supabase
             .from('sesiones_conduccion')
             .select('id_sesion')
@@ -223,7 +45,7 @@
             return;
         }
 
-        // 3. Obtener CAPTURAS (No alertas) de los últimos 30 días
+        // 2. Obtener CAPTURAS (Datos minuto a minuto)
         const { data: capturas, error } = await supabase
             .from('Capturas')
             .select('hora_captura, nivel_riesgo_calculado')
@@ -232,7 +54,7 @@
             .order('hora_captura', { ascending: true });
 
         if (error) {
-            console.error("Error cargando gráfico:", error);
+            console.error("Error gráfico:", error);
             return;
         }
 
@@ -240,33 +62,54 @@
     }
 
     function processAndRenderChart(capturas, startDate, endDate) {
-        // Estructura de datos: { "2023-10-01": { Normal: 10, Leve: 2... }, ... }
         const dailyStats = {};
         
-        // Inicializar los últimos 30 días en 0
+        // Inicializar fechas vacías
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
-            dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0 };
+            dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0, Total: 0 };
         }
 
-        // Llenar con datos reales
+        // Llenar datos (Contamos minutos)
         capturas.forEach(c => {
             const dateStr = c.hora_captura.split('T')[0];
             if (dailyStats[dateStr]) {
                 let nivel = c.nivel_riesgo_calculado || 'Normal';
                 if (nivel === 'Alto riesgo') nivel = 'Alto';
+                
                 if (dailyStats[dateStr][nivel] !== undefined) {
-                    dailyStats[dateStr][nivel]++;
+                    dailyStats[dateStr][nivel]++; // +1 minuto aprox
+                    dailyStats[dateStr].Total++;
                 }
             }
         });
 
-        // Preparar arrays
+        // Convertir a PORCENTAJES (%)
         const labels = Object.keys(dailyStats);
-        const dataNormal = labels.map(date => dailyStats[date].Normal);
-        const dataLeve = labels.map(date => dailyStats[date].Leve);
-        const dataModerado = labels.map(date => dailyStats[date].Moderado);
-        const dataAlto = labels.map(date => dailyStats[date].Alto);
+        
+        const dataNormal = [];
+        const dataLeve = [];
+        const dataModerado = [];
+        const dataAlto = [];
+
+        labels.forEach(date => {
+            const day = dailyStats[date];
+            const total = day.Total || 1; // Evitar división por cero
+
+            // Calculamos el % de tiempo en cada estado
+            // Si el total es 0 (no condujo), dejamos todo en 0
+            if (day.Total === 0) {
+                dataNormal.push(null); // null para que no dibuje punto
+                dataLeve.push(null);
+                dataModerado.push(null);
+                dataAlto.push(null);
+            } else {
+                dataNormal.push((day.Normal / total) * 100);
+                dataLeve.push((day.Leve / total) * 100);
+                dataModerado.push((day.Moderado / total) * 100);
+                dataAlto.push((day.Alto / total) * 100);
+            }
+        });
 
         renderChart(labels, dataNormal, dataLeve, dataModerado, dataAlto);
     }
@@ -274,54 +117,52 @@
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
 
-        if (myChart) {
-            myChart.destroy();
-        }
+        if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
-            type: 'line', // <--- CAMBIO: Gráfico de Líneas
+            type: 'line',
             data: {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Normal (Minutos)',
+                        label: 'Normal (%)',
                         data: dNormal,
                         borderColor: '#10b981', // Verde
-                        backgroundColor: '#10b981', 
-                        tension: 0.4, // Curvas suaves
-                        pointRadius: 4, // Puntos visibles
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)', 
                         borderWidth: 2,
-                        fill: false
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 3
                     },
                     {
-                        label: 'Fatiga Leve (Minutos)',
+                        label: 'Fatiga (%)',
                         data: dLeve,
                         borderColor: '#facc15', // Amarillo
-                        backgroundColor: '#facc15',
-                        tension: 0.4,
-                        pointRadius: 4,
+                        backgroundColor: 'rgba(250, 204, 21, 0.4)',
                         borderWidth: 2,
-                        fill: false
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4
                     },
                     {
-                        label: 'Somnolencia (Minutos)', // <--- NUEVO NOMBRE
+                        label: 'Somnolencia (%)',
                         data: dModerado,
                         borderColor: '#f97316', // Naranja
-                        backgroundColor: '#f97316',
-                        tension: 0.4,
-                        pointRadius: 4,
+                        backgroundColor: 'rgba(249, 115, 22, 0.5)',
                         borderWidth: 2,
-                        fill: false
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 5
                     },
                     {
-                        label: 'Microsueño (Minutos)', // <--- NUEVO NOMBRE
+                        label: 'Microsueño (%)',
                         data: dAlto,
                         borderColor: '#ef4444', // Rojo
-                        backgroundColor: '#ef4444',
-                        tension: 0.4,
-                        pointRadius: 4,
+                        backgroundColor: 'rgba(239, 68, 68, 0.6)',
                         borderWidth: 2,
-                        fill: false
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6
                     }
                 ]
             },
@@ -334,27 +175,46 @@
                 },
                 scales: {
                     x: {
-                        ticks: { color: '#cbd5e1' },
-                        grid: { color: '#334155' }
+                        ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 },
+                        grid: { color: '#334155', drawBorder: false }
                     },
                     y: {
                         beginAtZero: true,
-                        ticks: { color: '#cbd5e1' },
-                        grid: { color: '#334155' },
+                        max: 100, // Fijamos el máximo en 100%
+                        ticks: { 
+                            color: '#94a3b8',
+                            callback: function(value) { return value + "%" } // Añadir % al eje
+                        },
+                        grid: { color: '#334155', drawBorder: false },
                         title: {
                             display: true,
-                            text: 'Tiempo de Conducción (Minutos)',
-                            color: '#94a3b8'
+                            text: 'Distribución del Tiempo de Viaje',
+                            color: '#cbd5e1'
                         }
                     }
                 },
                 plugins: {
                     legend: {
-                        labels: { color: '#fff', usePointStyle: true }
+                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 }
                     },
                     tooltip: {
-                        mode: 'index',
-                        intersect: false,
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + '% del tiempo';
+                                }
+                                return label;
+                            }
+                        }
                     }
                 }
             }
@@ -369,13 +229,15 @@
             type: 'line',
             data: {
                 labels: ['Sin datos'],
-                datasets: [{ label: 'Sin actividad', data: [0], borderColor: '#334155' }]
+                datasets: [{ label: 'Sin actividad', data: [], borderColor: '#334155' }]
             },
             options: { responsive: true, plugins: { legend: { display: false } } }
         });
     }
 
-    // Lógica del Historial (Sin cambios, solo mantenida)
+    // ==========================================
+    // LÓGICA DEL HISTORIAL (Misma de antes)
+    // ==========================================
     const tableBody = document.getElementById('historyTable');
     const prevBtn = document.getElementById('prevPage');
     const nextBtn = document.getElementById('nextPage');
@@ -384,15 +246,6 @@
     let currentPage = 1;
     const pageSize = 10;
     let currentUserId = null;
-
-    async function initAll() {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            currentUserId = user.id;
-            loadChartData(user.id); // Cargar Gráfico Inicio
-            fetchHistory(1);        // Cargar Historial
-        }
-    }
 
     btnFilter.addEventListener('click', () => fetchHistory(1));
     prevBtn.addEventListener('click', () => { if(currentPage > 1) fetchHistory(currentPage - 1); });
@@ -473,8 +326,5 @@
         });
     });
 
-    initAll();
+    initDashboard();
 </script>
-
-</body>
-</html>
