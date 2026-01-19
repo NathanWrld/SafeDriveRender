@@ -600,6 +600,57 @@
         });
     });
 
+    // --- LÓGICA DE CAMBIO DE TEMA ---
+    const themeBtn = document.getElementById('themeToggle');
+    const headerLogo = document.getElementById('headerLogo');
+    const sidebarLogo = document.getElementById('sidebarLogo');
+
+    // Función para actualizar logos
+    function updateLogos(isLight) {
+        const logoSrc = isLight ? 'img/blue-logo.png' : 'img/white-logo.png';
+        if(headerLogo) headerLogo.src = logoSrc;
+        if(sidebarLogo) sidebarLogo.src = logoSrc;
+    }
+
+    // Función principal de cambio
+    themeBtn.addEventListener('click', () => {
+        const currentTheme = document.body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        // 1. Cambiar atributos CSS
+        if (newTheme === 'light') {
+            document.body.setAttribute('data-theme', 'light');
+        } else {
+            document.body.removeAttribute('data-theme');
+        }
+
+        // 2. Cambiar Logos
+        updateLogos(newTheme === 'light');
+
+        // 3. (Opcional) Guardar preferencia en el navegador
+        localStorage.setItem('theme', newTheme);
+        
+        // 4. Actualizar gráficas (Chart.js necesita saber que el color de texto cambió)
+        if(myChart) {
+            // Actualizar colores de la gráfica según el tema
+            const textColor = newTheme === 'light' ? '#475569' : '#94a3b8';
+            const gridColor = newTheme === 'light' ? '#e2e8f0' : '#334155';
+            
+            myChart.options.scales.x.ticks.color = textColor;
+            myChart.options.scales.y.ticks.color = textColor;
+            myChart.options.scales.x.grid.color = gridColor;
+            myChart.options.scales.y.grid.color = gridColor;
+            myChart.update();
+        }
+    });
+
+    // Cargar preferencia guardada al iniciar
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.setAttribute('data-theme', 'light');
+        updateLogos(true);
+    }
+
     initDashboard();
 </script>
 
