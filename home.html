@@ -290,7 +290,7 @@
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
         
-        // Detectar Móvil
+        // Detectar si es móvil
         const isMobile = window.innerWidth < 768;
 
         if (myChart) myChart.destroy();
@@ -305,11 +305,11 @@
                         data: dNormal,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: isMobile ? 1.5 : 2, // Línea fina
+                        borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 4,   // Punto pequeño
-                        pointHitRadius: 20, // Área de toque grande (para que sea fácil tocarlo con el dedo)
-                        pointBackgroundColor: '#10b981',
+                        pointRadius: 0, // Sin puntos normales para limpiar la vista
+                        pointHitRadius: 20, // Área táctil invisible GRANDE
+                        pointHoverRadius: 4, // Aparece al tocar
                         fill: true 
                     },
                     {
@@ -319,9 +319,8 @@
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 4,
+                        pointRadius: isMobile ? 2 : 3,
                         pointHitRadius: 20,
-                        pointBackgroundColor: '#facc15',
                         fill: true
                     },
                     {
@@ -331,9 +330,8 @@
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 4,
+                        pointRadius: isMobile ? 2 : 3,
                         pointHitRadius: 20,
-                        pointBackgroundColor: '#f97316',
                         fill: true
                     },
                     {
@@ -343,9 +341,8 @@
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.4,
-                        pointRadius: isMobile ? 2 : 4,
+                        pointRadius: isMobile ? 2 : 3,
                         pointHitRadius: 20,
-                        pointBackgroundColor: '#ef4444',
                         fill: true
                     }
                 ]
@@ -354,24 +351,31 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 resizeDelay: 200,
+                
+                // MEJORA DE INTERACCIÓN TÁCTIL
+                interaction: {
+                    mode: 'index',     // Muestra todos los datos de ese día
+                    intersect: false,  // ¡CLAVE! No hace falta tocar el punto exacto, solo la línea vertical
+                    axis: 'x'          // Facilita el barrido horizontal con el dedo
+                },
+
                 layout: {
                     padding: { top: 10, left: 0, right: 10, bottom: 0 }
                 },
-                interaction: { mode: 'index', intersect: false },
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
-                            font: { size: isMobile ? 9 : 12 }, // Letra pequeña (9px)
+                            font: { size: isMobile ? 9 : 11 },
                             maxRotation: 0, 
                             minRotation: 0,
+                            autoSkip: false, // <--- ¡CLAVE! OBLIGA A MOSTRAR TODOS LOS DÍAS
                             callback: function(val, index) {
                                 const label = this.getLabelForValue(val);
-                                // En móvil solo mostramos el día
-                                return isMobile ? label.split('-')[2] : label;
+                                return isMobile ? label.split('-')[2] : label; // Solo día en móvil
                             }
                         },
-                        grid: { color: '#334155', drawBorder: false, tickLength: 4 }
+                        grid: { color: '#334155', drawBorder: false }
                     },
                     y: {
                         beginAtZero: true,
@@ -379,9 +383,9 @@
                         stacked: false,
                         ticks: { 
                             color: '#94a3b8',
-                            font: { size: isMobile ? 9 : 12 }, // Letra pequeña (9px)
+                            font: { size: isMobile ? 9 : 11 },
                             callback: v => v + "%",
-                            maxTicksLimit: 6 // Menos líneas horizontales
+                            maxTicksLimit: 6 
                         },
                         grid: { color: '#334155', drawBorder: false },
                         title: { display: !isMobile, text: 'Tiempo de Viaje', color: '#cbd5e1' }
@@ -389,21 +393,40 @@
                 },
                 plugins: {
                     legend: {
+                        // AJUSTE DE TAMAÑO DE LEYENDA
                         labels: { 
                             color: '#fff', 
                             usePointStyle: true, 
-                            boxWidth: isMobile ? 6 : 10, // Cuadrito de color pequeño
-                            font: { size: isMobile ? 10 : 12 }, // Letra de leyenda pequeña
-                            padding: 10
+                            // Icono (cuadrito) mucho más pequeño
+                            boxWidth: isMobile ? 6 : 10, 
+                            // Texto más pequeño
+                            font: { size: isMobile ? 10 : 12 }, 
+                            // Menos espacio entre items
+                            padding: isMobile ? 10 : 20 
+                        },
+                        // Permitir clicks en la leyenda
+                        onClick: function(e, legendItem, legend) {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+                            if (ci.isDatasetVisible(index)) {
+                                ci.hide(index);
+                                legendItem.hidden = true;
+                            } else {
+                                ci.show(index);
+                                legendItem.hidden = false;
+                            }
                         }
                     },
-                    title: { display: false }, // Sin título interno
+                    title: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        titleFont: { size: 11 },
-                        bodyFont: { size: 11 },
-                        padding: 8,
-                        cornerRadius: 4,
+                        titleFont: { size: 12 },
+                        bodyFont: { size: 12 },
+                        padding: 10,
+                        cornerRadius: 6,
+                        displayColors: true, // Muestra el colorcito en el tooltip
+                        boxWidth: 8,
+                        boxHeight: 8,
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
@@ -416,7 +439,7 @@
             }
         });
 
-        // Auto-scroll suave
+        // Auto-scroll inicial a la derecha
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
