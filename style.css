@@ -317,21 +317,30 @@ canvas {
     padding: 0; 
   }
 
+  /* Contenedor CON SCROLL activado */
   .chart-scroll-wrapper {
-    height: 350px; /* Altura fija */
-    width: 100%;   /* Ancho total del móvil */
-    overflow: hidden; /* <--- SIN SCROLLBAR */
+    height: 350px; 
+    width: 100%;
+    overflow-x: auto; /* <--- SCROLL ACTIVO */
+    -webkit-overflow-scrolling: touch;
+    
+    /* Fondo sutil para indicar deslizamiento */
+    background: linear-gradient(to right, #1e293b 30%, rgba(255,255,255,0) 0%);
   }
 
+  /* EL LIENZO */
   .chart-scroll-wrapper canvas {
-    width: 100% !important; /* <--- SE ADAPTA AL 100% DE LA PANTALLA */
+    /* 700px es el equilibrio. Genera scroll, pero no es kilométrico.
+       Los 30 días caben bien (aprox 23px por día). */
+    min-width: 700px; 
     height: 100% !important;
   }
   
-  /* Ajuste compacto para la leyenda externa */
-  .chart-legend-html { gap: 4px; margin-bottom: 5px; }
-  .legend-item { padding: 4px 8px; font-size: 10px; }
+  /* Leyenda externa ajustada */
+  .chart-legend-html { gap: 5px; margin-bottom: 5px; }
+  .legend-item { padding: 4px 10px; font-size: 11px; }
 }
+
 /* ==========================================================================
    BOTONES
    ========================================================================== */

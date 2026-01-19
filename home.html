@@ -304,12 +304,12 @@
                         label: 'Normal',
                         data: dNormal,
                         borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: isMobile ? 1.5 : 2, // Línea fina en móvil
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)', 
+                        borderWidth: isMobile ? 1.5 : 2, // Línea fina (encogida)
                         tension: 0.3,
-                        pointRadius: 0,         // <--- SIN PUNTOS (Clave para que se vea bien encogido)
-                        pointHoverRadius: 6,    // Aparece solo al tocar
-                        pointHitRadius: 20,     
+                        pointRadius: isMobile ? 2 : 3,   // Punto pequeño
+                        pointHoverRadius: 5,
+                        pointHitRadius: 30,     // Área táctil grande para facilitar el toque
                         fill: true 
                     },
                     {
@@ -319,9 +319,9 @@
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 20,
+                        pointRadius: isMobile ? 2 : 3,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 30,
                         fill: true
                     },
                     {
@@ -331,9 +331,9 @@
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 20,
+                        pointRadius: isMobile ? 2 : 3,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 30,
                         fill: true
                     },
                     {
@@ -343,9 +343,9 @@
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         borderWidth: isMobile ? 1.5 : 2,
                         tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 20,
+                        pointRadius: isMobile ? 2 : 3,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 30,
                         fill: true
                     }
                 ]
@@ -355,36 +355,35 @@
                 maintainAspectRatio: false,
                 resizeDelay: 200,
                 
+                // INTERACCIÓN
                 interaction: {
                     mode: 'index',
-                    intersect: false, 
+                    intersect: false, // Permite tocar la columna entera
                     axis: 'x'
                 },
 
-                // Márgenes ajustados
-                layout: { padding: { top: 10, left: 0, right: 5, bottom: 0 } },
+                layout: { padding: { top: 10, left: 5, right: 10, bottom: 0 } },
                 
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
-                            font: { size: isMobile ? 9 : 11 }, // Letra muy pequeña (9px)
+                            font: { size: isMobile ? 10 : 11 }, // Letra pequeña
+                            maxRotation: 0, 
                             
-                            // CONFIGURACIÓN "FIT TO SCREEN" (Encajar en pantalla):
-                            autoSkip: false,    // Muestra todos los 30 días
-                            maxRotation: 90,    // Texto Vertical
-                            minRotation: 90,    // Texto Vertical
+                            // CONFIGURACIÓN VISUAL:
+                            autoSkip: false, // Muestra todos los días (caben bien en 700px)
                             
                             callback: function(val) {
                                 const label = this.getLabelForValue(val);
-                                // Muestra día/mes (19/01)
+                                // Día/Mes (ej: 19/01)
                                 return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
                             }
                         },
                         grid: { 
                             color: '#334155', 
                             drawBorder: false,
-                            display: false // Sin líneas verticales de fondo para menos ruido
+                            display: true 
                         }
                     },
                     y: {
@@ -392,16 +391,16 @@
                         max: 100,
                         ticks: { 
                             color: '#94a3b8', 
-                            font: { size: 9 },
+                            font: { size: 10 },
                             callback: v => v + "%", 
-                            maxTicksLimit: 5 
+                            maxTicksLimit: 6 
                         },
                         grid: { color: '#334155', drawBorder: false },
-                        title: { display: false }
+                        title: { display: !isMobile, text: 'Tiempo (%)', color: '#cbd5e1' }
                     }
                 },
                 plugins: {
-                    legend: { display: false }, 
+                    legend: { display: false }, // Usamos leyenda HTML externa
                     title: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.95)',
@@ -409,7 +408,7 @@
                         displayColors: true,
                         callbacks: {
                             title: function(context) {
-                                return context[0].label;
+                                return "Fecha: " + context[0].label;
                             },
                             label: function(context) {
                                 let label = context.dataset.label || '';
@@ -424,7 +423,18 @@
             }
         });
 
+        // Generar botones de leyenda
         generateHtmlLegend(myChart);
+
+        // Auto-scroll al final (derecha) en móvil
+        if (isMobile) {
+            setTimeout(() => {
+                const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
+                if (scrollWrapper && scrollWrapper.scrollWidth > scrollWrapper.clientWidth) {
+                    scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+                }
+            }, 100);
+        }
     }
 
     // --- FUNCIÓN PARA CREAR BOTONES DE LEYENDA ---
