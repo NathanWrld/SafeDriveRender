@@ -1,5 +1,6 @@
 // detection.js
-// SISTEMA DE DETECCIÓN: LÓGICA DE TIEMPO TOTAL REAL
+// SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
+// VERSIÓN CORREGIDA: Fix del congelamiento (Crash por variable no definida)
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -67,7 +68,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     let dynamicMARBaseline = 0.65;
 
     let lastModerateTimestamp = 0;
-    let microsleepTriggered = false; // Bandera para saber si estamos en medio de una alarma
+    let microsleepTriggered = false; 
     let yawnFrameCounter = 0;
 
     // ===============================
@@ -179,7 +180,19 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
         // =========================================================================
-        // LÓGICA PRINCIPAL DE OJOS (AQUI ESTÁ EL CAMBIO)
+        // ANÁLISIS 60s (MOVIDO AQUÍ ARRIBA PARA EVITAR EL CRASH)
+        // =========================================================================
+        const now = Date.now();
+        blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
+        slowBlinksBuffer = slowBlinksBuffer.filter(ts => ts > now - 60000); 
+        yawnsBuffer = yawnsBuffer.filter(ts => ts > now - 60000);
+
+        const totalBlinksLastMinute = blinkTimestamps.length;
+        const recentSlowBlinks = slowBlinksBuffer.length;
+        const recentYawns = yawnsBuffer.length;
+
+        // =========================================================================
+        // LÓGICA PRINCIPAL DE OJOS
         // =========================================================================
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
@@ -195,7 +208,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 eyeState = 'closed';
             }
         } else {
-            // El usuario está abriendo los ojos (o parpadeando)
+            // El usuario está abriendo los ojos
             reopenGraceCounter++;
             
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
@@ -207,19 +220,18 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     if (microsleepTriggered) {
                         console.log(`🚨 Microsueño finalizado. Duración total: ${totalClosedDuration.toFixed(2)}s`);
                         
-                        // Guardamos en BD AHORA con el tiempo total real
+                        // AQUI ERA EL ERROR: 'totalBlinksLastMinute' ahora sí existe porque lo calculamos arriba
                         sendDetectionEvent({
                             type: 'ALERTA',
                             sessionId,
-                            blinkRate: totalBlinksLastMinute, // Usamos variables del scope exterior
+                            blinkRate: totalBlinksLastMinute, 
                             ear: smoothedEAR,
                             riskLevel: 'Alto riesgo',
                             immediate: true,
-                            realDuration: totalClosedDuration // <--- AQUI VA EL TIEMPO TOTAL
+                            realDuration: totalClosedDuration 
                         });
 
                         microsleepTriggered = false; // Reset bandera
-                        // La alarma se apagará más abajo en la lógica de niveles
                     }
                     
                     // 2. SI FUE UN PARPADEO LENTO (Sin alarma previa)
@@ -252,16 +264,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             }
         }
 
-        // --- ANÁLISIS 60s ---
-        const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
-        slowBlinksBuffer = slowBlinksBuffer.filter(ts => ts > now - 60000); 
-        yawnsBuffer = yawnsBuffer.filter(ts => ts > now - 60000);
-
-        const totalBlinksLastMinute = blinkTimestamps.length;
-        const recentSlowBlinks = slowBlinksBuffer.length;
-        const recentYawns = yawnsBuffer.length;
-
         // --- GESTIÓN DE RIESGO Y ALARMAS ---
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS; // Tiempo actual cerrado (en vivo)
@@ -282,7 +284,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 alarmAudio.play().catch(e => console.log(e));
             }
 
-            // Marcamos que hay un evento en curso, PERO NO GUARDAMOS AUN en BD
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
                 console.log("⚠️ Alerta activada (esperando a que abra los ojos para guardar...)");
