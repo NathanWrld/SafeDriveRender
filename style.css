@@ -250,41 +250,51 @@ canvas {
 }
 
 /* ==========================================================================
-   GRÁFICAS – CHART
+   GRÁFICAS – CHART (CORREGIDO)
    ========================================================================== */
 .chart-container {
   position: relative;
   width: 100%;
   max-width: 100%;
   background: #1e293b;
-  padding: 20px 0;
+  padding: 15px; /* Ajustado para que no toque los bordes */
   border-radius: 12px;
   box-shadow: 0 0 10px rgba(0,0,0,0.4);
   margin-bottom: 25px;
+  box-sizing: border-box; /* Importante para respetar paddings */
 }
 
+/* El canvas debe llenar el contenedor, NO tener auto height */
 .chart-container canvas {
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important; /* Cambio clave: Llenar la altura del padre */
 }
 
 /* Scroll horizontal para gráficas */
 .chart-scroll-wrapper {
+  position: relative; /* Necesario para Chart.js */
+  width: 100%;
+  height: 350px; /* <--- ALTURA FIJA OBLIGATORIA PARA ESCRITORIO */
   overflow-x: auto;
   overflow-y: hidden;
   touch-action: pan-x;
   -webkit-overflow-scrolling: touch;
-  width: 100%;
 }
 
 @media (max-width: 768px) {
   .chart-container {
-    padding: 0px;
+    padding: 10px; /* Menos padding en móvil */
+  }
+
+  .chart-scroll-wrapper {
+    height: 300px; /* <--- ALTURA FIJA OBLIGATORIA PARA MÓVIL */
   }
 
   .chart-scroll-wrapper canvas {
-    min-width: 1200px; 
-    height: auto !important;
+    /* Forzamos un ancho mínimo para que el usuario pueda hacer scroll horizontal
+       y ver los 30 días con claridad, en lugar de apretarlos todos. */
+    min-width: 800px; 
+    height: 100% !important;
   }
 }
 

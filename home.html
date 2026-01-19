@@ -345,37 +345,48 @@
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
+                maintainAspectRatio: false, // Permite que use la altura del CSS
+                resizeDelay: 200, // <--- NUEVO: Espera 200ms antes de redibujar (Evita crash en móvil)
                 interaction: {
                     mode: 'index',
                     intersect: false,
                 },
                 scales: {
                     x: {
-                        ticks: { color: '#94a3b8' },
+                        ticks: { 
+                            color: '#94a3b8', 
+                            maxRotation: 45, 
+                            minRotation: 45,
+                            // NUEVO: En móvil, saltar etiquetas si hay muchas
+                            autoSkip: true,
+                            maxTicksLimit: 10 
+                        },
                         grid: { color: '#334155', drawBorder: false }
                     },
                     y: {
                         beginAtZero: true,
-                        max: 100, // Mantiene la escala 0-100%
-                        stacked: false, // <--- IMPORTANTE: Desactivado el apilado feo
+                        max: 100,
+                        stacked: false,
                         ticks: { 
                             color: '#94a3b8',
                             callback: function(value) { return value + "%" } 
                         },
                         grid: { color: '#334155', drawBorder: false },
                         title: {
-                            display: true,
-                            text: 'Porcentaje de Tiempo de Viaje',
+                            display: true, // A veces en móvil es mejor ocultar el título para ganar espacio
+                            text: 'Tiempo (%)', // Texto más corto para móvil
                             color: '#cbd5e1'
                         }
                     }
                 },
                 plugins: {
                     legend: {
-                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 }
+                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 },
+                        position: 'top', // Asegura que la leyenda esté arriba
+                        align: 'center'
                     },
                     tooltip: {
+                        // ... (tu configuración de tooltip actual está bien)
                         backgroundColor: 'rgba(15, 23, 42, 0.9)',
                         titleColor: '#fff',
                         bodyColor: '#cbd5e1',
