@@ -99,6 +99,8 @@ async function endUserSession() {
 }
 
 // -------------------- BOTONES DETECCIÓN --------------------
+// script.js
+
 document.getElementById('startDetection').addEventListener('click', async () => {
     const rol = await getUserRole();
     console.log('Rol detectado:', rol);
@@ -107,8 +109,20 @@ document.getElementById('startDetection').addEventListener('click', async () => 
     else canvasElement.style.display = 'none';
     videoElement.style.display = 'block';
 
-    await startUserSession();
-    startDetection({ rol, videoElement, canvasElement, estado, cameraRef });
+    await startUserSession(); // Esto llena la variable global sessionId
+
+    // --- AQUÍ ESTABA EL ERROR ---
+    // Antes: startDetection({ rol, videoElement, canvasElement, estado, cameraRef });
+    
+    // AHORA (Agrega sessionId):
+    startDetection({ 
+        rol, 
+        videoElement, 
+        canvasElement, 
+        estado, 
+        cameraRef, 
+        sessionId // <--- IMPORTANTE: Pasamos el ID a la otra función
+    });
 
     document.getElementById('startDetection').style.display = 'none';
     document.getElementById('stopDetection').style.display = 'inline-block';
