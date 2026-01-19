@@ -207,10 +207,10 @@
     });
 
     async function loadChartData(userId) {
-        // Rango: Últimos 15 días (para que se vean mejor los puntos)
+        // Rango: Últimos 30 días (para que se vean mejor los puntos)
         const endDate = new Date();
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 15);
+        startDate.setDate(startDate.getDate() - 30);
 
         // 1. Obtener sesiones
         const { data: sesiones } = await supabase
