@@ -5,18 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard – Sistema de Detección de Astenia</title>
 <link rel="stylesheet" href="style.css" />
-  <!-- MediaPipe FaceMesh -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
 
 <body>
-<!-- HEADER -->
 <header class="top-header">
     <div class="header-left">
         <img src="logo.png" alt="Logo" class="logo">
@@ -25,11 +22,8 @@
 </header>
 
 <div class="content">
-    <!-- OVERLAY -->
     <div id="overlay" class="overlay"></div>
 
-
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <h2>Panel Principal</h2>
         <a class="menu-btn active" data-target="inicio">Inicio</a>
@@ -39,12 +33,9 @@
         <a href="#" id="logoutBtn">Cerrar Sesión</a>
     </div>
 
-    <!-- Botón Cerrar (X) fuera del slide) -->
     <div id="closeSidebar" class="close-sidebar">✕</div>
 
-    <!-- Main content -->
     <div class="main normal-container">
-        <!-- Inicio -->
         <section id="inicio" class="card">
             <h2>Resumen Últimos 30 Días</h2>
             <div class="chart-container">
@@ -54,16 +45,14 @@
             </div>
             <p>Datos sobre estados de fatiga o somnolencia del conductor en los últimos 30 días.</p>
             <p>El sistema ha identificado indicadores recurrentes de fatiga o somnolencia en los últimos días.
-<b>Se recomienda acudir a un profesional de la salud</b> para descartar astenia u otras condiciones médicas.</p>
+            <b>Se recomienda acudir a un profesional de la salud</b> para descartar astenia u otras condiciones médicas.</p>
         </section>
 
 
-        <!-- Detección en tiempo real -->
         <section id="deteccion" class="card" style="display:none;">
             <h2>Detección en Tiempo Real</h2>
             <div class="cam-container" id="camFeed">
                 <video id="camaraNormal" class="input_video" autoplay playsinline style="display:none;"></video>
-
                 <canvas id="camaraAvanzada" class="output_canvas"></canvas>
             </div>
             <div class="btn-detection-container">
@@ -73,61 +62,42 @@
                 <button id="startDetection" class="primary-button">Iniciar Detección</button>
                 <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
             </div>
-            
         </section>
 
 
-    <!-- Gestión de usuarios / Editar Perfil -->
         <section id="usuarios" class="card" style="display:none;">
             <h2 style="margin-bottom:20px; text-align:center;">Mi Perfil</h2>
-
             <form id="editProfileForm">
                 <div class="form-group">
                     <label for="userName">Nombre:</label>
                     <input type="text" id="userName" name="userName" required>
                 </div>
-
                 <div class="form-group">
                     <label for="userEmail">Email:</label>
                     <input type="email" id="userEmail" name="userEmail" readonly>
                 </div>
-
                 <div class="form-group">
                     <label for="newPassword">Nueva Contraseña:</label>
                     <input type="password" id="newPassword" name="newPassword" autocomplete="new-password">
                 </div>
-
                 <div class="form-group">
                     <label for="repeatPassword">Repetir Contraseña:</label>
                     <input type="password" id="repeatPassword" name="repeatPassword">
                 </div>
-
                 <div class="form-group">
                     <label for="currentPassword">Contraseña Actual:</label>
-                    <input
-                    type="password"
-                    id="currentPassword"
-                    name="currentPassword"
-                    required
-                    autocomplete="current-password"
-                    >
+                    <input type="password" id="currentPassword" name="currentPassword" required autocomplete="current-password">
                 </div>
-
                 <div id="profileMessage"></div>
-
                 <button type="submit" class="primary-button">Guardar Cambios</button>
             </form>
         </section>
 
 
-       <!-- Historial -->
-        <section id="historial" class="card" style="display:none;">
-
+       <section id="historial" class="card" style="display:none;">
             <h2>Historial de Alertas</h2>
 
-            <!-- Filtros -->
             <div class="history-filters">
-                
                 <div class="filter-wrapper">
                     <div class="filter-item">
                         <label for="filterDate">Fecha:</label>
@@ -135,12 +105,13 @@
                     </div>
 
                     <div class="filter-item">
-                        <label for="filterType">Tipo de alerta:</label>
+                        <label for="filterType">Causa:</label>
                         <select id="filterType">
                             <option value="">Todas</option>
-                            <option value="Fatiga">Fatiga</option>
-                            <option value="Somnolencia">Somnolencia</option>
                             <option value="Microsueño">Microsueño</option>
+                            <option value="Bostezos">Bostezos</option>
+                            <option value="Parpadeos Lentos">Parpadeos Lentos</option>
+                            <option value="Fatiga General">Fatiga General</option>
                         </select>
                     </div>
 
@@ -148,175 +119,254 @@
                         <label for="filterLevel">Nivel:</label>
                         <select id="filterLevel">
                             <option value="">Todos</option>
-                            <option value="Normal">Normal</option>
-                            <option value="Leve">Leve</option>
                             <option value="Moderado">Moderado</option>
-                            <option value="Alto">Alto riesgo</option>
+                            <option value="Alto riesgo">Alto riesgo</option>
                         </select>
                     </div>
 
-                    <div class="filter-item">
-                        <label for="filterAction">Acción del sistema:</label>
-                        <select id="filterAction">
-                            <option value="">Todas</option>
-                            <option value="Preventiva">Preventiva</option>
-                            <option value="Sonora">Sonora</option>
-                        </select>
-                    </div>
                     <button id="applyFilters" class="primary-button">Filtrar</button>
                 </div>
             </div>
 
-            <!-- Tabla historial -->
             <div class="table-container">
                 <table class="history-table">
                     <thead>
                         <tr>
                             <th>Fecha</th>
-                            <th>Alerta</th>
-                            <th>Nivel</th>
-                            <th>Acción</th>
+                            <th>Causa Detectada</th>
+                            <th>Nivel de Riesgo</th>
+                            <th>Valor Medido</th>
                         </tr>
                     </thead>
-
                     <tbody id="historyTable">
-                        <!-- Ejemplo inicial -->
-                        <tr>
-                            <td>2025-12-01 08:00</td>
-                            <td>Somnolencia</td>
-                            <td>Moderado</td>
-                            <td>Preventiva</td>
-                        </tr>
-
-                        <tr>
-                            <td>2025-12-01 08:20</td>
-                            <td>Microsueño</td>
-                            <td>Alto riesgo</td>
-                            <td>Sonora</td>
-                        </tr>
-
-                        <tr>
-                            <td>2025-12-01 09:10</td>
-                            <td>Fatiga</td>
-                            <td>Leve</td>
-                            <td>Preventiva</td>
-                        </tr>
+                        <tr><td colspan="4" style="text-align:center;">Cargando datos...</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Paginación -->
             <div class="pagination">
                 <button class="page-btn" id="prevPage">
-                     <?xml version="1.0" encoding="utf-8"?>
-<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
-<svg width="800px" height="800px" viewBox="0 0 1024 1024" class="icon"  version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M364.8 106.666667L298.666667 172.8 637.866667 512 298.666667 851.2l66.133333 66.133333L768 512z" fill="currentColor" /></svg>
+                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
-                <span id="pageInfo">Página 1 de 1</span>
+                <span id="pageInfo">Página 1</span>
                 <button class="page-btn" id="nextPage">
-                   <?xml version="1.0" encoding="utf-8"?>
-<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
-<svg width="800px" height="800px" viewBox="0 0 1024 1024" class="icon"  version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M364.8 106.666667L298.666667 172.8 637.866667 512 298.666667 851.2l66.133333 66.133333L768 512z" fill="currentColor" /></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
             </div>
-
         </section>
 
     </div>
 </div>
 
-
 <audio id="alarmSound" loop preload="auto">
     <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
 </audio>
-
 <audio id="notifySound" preload="auto">
     <source src="https://assets.mixkit.co/active_storage/sfx/2344/2344-preview.mp3" type="audio/mpeg">
 </audio>
-
 <div id="warningPopup" class="warning-popup alert-orange">
-    <div class="warning-content" id="popupTextContent">
-        </div>
+    <div class="warning-content" id="popupTextContent"></div>
 </div>
 
-<script>
-    // Navegación entre módulos
-    const menuBtns = document.querySelectorAll('.menu-btn');
-    const sections = ['inicio','deteccion','usuarios','historial'];
+<script type="module" src="script.js"></script>
+<script src="burger-btn.js"></script>
 
-    menuBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Activar botón
-            menuBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Mostrar sección correspondiente
-            sections.forEach(sec => {
-                document.getElementById(sec).style.display = (sec === btn.dataset.target) ? 'block' : 'none';
-            });
-        });
-    });
-</script>
 <script>
     const riskLevels = ["Normal", "Leve", "Moderado", "Alto riesgo"];
     const riskColors = ['#10b981','#facc15','#f97316','#ef4444'];
-
     const fatigaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
     const somnolenciaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
-
     const ctx = document.getElementById('fatigueChart').getContext('2d');
-
-    const fatigueChart = new Chart(ctx, {
+    new Chart(ctx, {
         type: 'line',
         data: {
             labels: Array.from({length:30}, (_,i)=>`Día ${i+1}`),
             datasets: [
-                {
-                    label: 'Fatiga',
-                    data: fatigaData,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59,130,246,0.2)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 6,
-                    pointBackgroundColor: fatigaData.map(v => riskColors[riskLevels.indexOf(v)])
-                },
-                {
-                    label: 'Somnolencia',
-                    data: somnolenciaData,
-                    borderColor: '#facc15',
-                    backgroundColor: 'rgba(250,204,21,0.2)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 6,
-                    pointBackgroundColor: somnolenciaData.map(v => riskColors[riskLevels.indexOf(v)])
-                }
+                { label: 'Fatiga', data: fatigaData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', fill: true, tension: 0.4 },
+                { label: 'Somnolencia', data: somnolenciaData, borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.2)', fill: true, tension: 0.4 }
             ]
         },
-        options: {
-            responsive:false,
-            layout: {
-                padding: { top: 30, bottom: 10 }
-            },
-            scales: {
-                y: {
-                    type: 'category',
-                    labels: riskLevels,
-                    reverse: true, // ahora Normal arriba, Alto riesgo abajo
-                    ticks: { color:'#fff' }
-                },
-                x: {
-                    ticks: { color:'#fff' }
-                }
-            },
-            plugins: {
-                legend: { labels: { color:'#fff' } }
-            }
-        }
+        options: { responsive:false, layout: { padding: { top: 30, bottom: 10 } }, scales: { y: { type: 'category', labels: riskLevels, reverse: true, ticks: { color:'#fff' } }, x: { ticks: { color:'#fff' } } }, plugins: { legend: { labels: { color:'#fff' } } } }
     });
 </script>
-<script type="module" src="script.js"></script>
-<script src="burger-btn.js"></script>
+
+<script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    // Configuración (Mismas credenciales)
+    const supabaseUrl = 'https://roogjmgxghbuiogpcswy.supabase.co'
+    const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // Variables de Estado
+    let currentPage = 1;
+    const pageSize = 10;
+    let currentUserId = null;
+
+    // Elementos DOM
+    const tableBody = document.getElementById('historyTable');
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+    const btnFilter = document.getElementById('applyFilters');
+
+    // Inicializar al cargar el usuario
+    async function initHistory() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            currentUserId = user.id;
+            fetchHistory(1);
+        }
+    }
+
+    // Navegación Sidebar (para cargar datos al entrar a la sección)
+    document.querySelector('.menu-btn[data-target="historial"]').addEventListener('click', () => {
+        if(currentUserId) fetchHistory(1);
+    });
+
+    // Filtros y Paginación
+    btnFilter.addEventListener('click', () => fetchHistory(1));
+    prevBtn.addEventListener('click', () => { if(currentPage > 1) fetchHistory(currentPage - 1); });
+    nextBtn.addEventListener('click', () => fetchHistory(currentPage + 1));
+
+    // --- FUNCIÓN PRINCIPAL: TRAER DATOS ---
+    async function fetchHistory(page) {
+        if (!currentUserId) return;
+        
+        // UI de carga
+        tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando registros...</td></tr>';
+        
+        // Obtener valores de filtros
+        const fDate = document.getElementById('filterDate').value;
+        const fType = document.getElementById('filterType').value;
+        const fLevel = document.getElementById('filterLevel').value;
+
+        // Calcular rango de paginación
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        // Construir Query
+        // 1. Unimos con 'sesiones_conduccion' para filtrar solo por el usuario actual
+        // Nota: En Supabase JS, para filtrar por tabla relacionada se usa la notación:
+        // !inner join explicito no es directo, pero filtramos por id_sesion
+        
+        // Paso A: Obtener sesiones del usuario (subquery manual para simplicidad)
+        const { data: sesiones } = await supabase
+            .from('sesiones_conduccion')
+            .select('id_sesion')
+            .eq('id_usuario', currentUserId);
+        
+        const sessionIds = sesiones.map(s => s.id_sesion);
+
+        if (sessionIds.length === 0) {
+            renderTable([], 0);
+            return;
+        }
+
+        // Paso B: Query principal a ALERTAS
+        let query = supabase
+            .from('Alertas')
+            .select('*', { count: 'exact' })
+            .in('id_sesion', sessionIds) // Solo alertas de mis sesiones
+            .order('fecha_alerta', { ascending: false })
+            .range(from, to);
+
+        // Aplicar filtros dinámicos
+        if (fLevel) query = query.eq('nivel_riesgo', fLevel);
+        
+        // Filtro de Causa (usamos like para búsqueda flexible o eq si es exacto)
+        if (fType) query = query.ilike('causa_detonante', `%${fType}%`);
+
+        // Filtro de Fecha (Rango de todo el día seleccionado)
+        if (fDate) {
+            const startDate = new Date(fDate);
+            const endDate = new Date(fDate);
+            endDate.setDate(endDate.getDate() + 1); // Día siguiente
+            query = query.gte('fecha_alerta', startDate.toISOString()).lt('fecha_alerta', endDate.toISOString());
+        }
+
+        // Ejecutar
+        const { data, count, error } = await query;
+
+        if (error) {
+            console.error("Error historial:", error);
+            tableBody.innerHTML = '<tr><td colspan="4" style="color:red; text-align:center;">Error al cargar datos</td></tr>';
+            return;
+        }
+
+        // Renderizar
+        currentPage = page;
+        renderTable(data, count);
+    }
+
+    // --- RENDERIZADO HTML ---
+    function renderTable(data, totalCount) {
+        tableBody.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No se encontraron alertas registradas.</td></tr>';
+            pageInfo.textContent = `Página 1 de 1`;
+            return;
+        }
+
+        data.forEach(alerta => {
+            const row = document.createElement('tr');
+            
+            // Formatear Fecha
+            const fecha = new Date(alerta.fecha_alerta).toLocaleString('es-ES', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            // Clase CSS para color
+            let levelClass = 'level-normal';
+            if (alerta.nivel_riesgo === 'Alto riesgo') levelClass = 'level-alto';
+            if (alerta.nivel_riesgo === 'Moderado') levelClass = 'level-moderado';
+            if (alerta.nivel_riesgo === 'Leve') levelClass = 'level-leve';
+
+            // Formatear Valor (ej: 2.0s o 3 bostezos)
+            let valorDisplay = alerta.valor_medido ? alerta.valor_medido.toString() : '-';
+            if (alerta.causa_detonante.includes("Microsueño") || alerta.causa_detonante.includes("Parpadeo")) {
+                valorDisplay += " seg";
+            } else if (alerta.causa_detonante.includes("Bostezos")) {
+                valorDisplay += " veces";
+            }
+
+            row.innerHTML = `
+                <td>${fecha}</td>
+                <td>${alerta.causa_detonante || 'Desconocida'}</td>
+                <td class="${levelClass}">${alerta.nivel_riesgo}</td>
+                <td>${valorDisplay}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+
+        // Actualizar Info Paginación
+        const totalPages = Math.ceil(totalCount / pageSize);
+        pageInfo.textContent = `Página ${currentPage} de ${totalPages || 1}`;
+        
+        // Control botones
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage >= totalPages;
+        prevBtn.style.opacity = currentPage === 1 ? "0.5" : "1";
+        nextBtn.style.opacity = currentPage >= totalPages ? "0.5" : "1";
+    }
+
+    // Navegación simple entre módulos
+    const menuBtns = document.querySelectorAll('.menu-btn');
+    menuBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            menuBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            ['inicio','deteccion','usuarios','historial'].forEach(sec => {
+                document.getElementById(sec).style.display = (sec === btn.dataset.target) ? 'block' : 'none';
+            });
+        });
+    });
+
+    // Iniciar al cargar
+    initHistory();
+</script>
 
 </body>
 </html>
