@@ -39,13 +39,17 @@
         
         <section id="inicio" class="card">
             <h2>Tendencia Mensual de Conducción</h2>
+            
             <div class="chart-container">
                 <div id="customLegend" class="chart-legend-html"></div>
 
                 <div class="chart-scroll-wrapper">
-                    <canvas id="fatigueChart"></canvas> 
+                    <div class="chart-body">
+                        <canvas id="fatigueChart"></canvas> 
+                    </div>
                 </div>
             </div>
+
             <p>Evolución de los minutos acumulados por estado en los últimos 30 días.</p>
             <div id="chartLegendInfo" style="margin-top:10px; font-size: 0.9em; color: #cbd5e1;">
                 <p>💡 <strong>Guía:</strong> 
@@ -225,7 +229,7 @@
             return;
         }
 
-        // 2. CONSULTA A LA VISTA "resumen_diario" (Mucho más rápida y sin límite de filas)
+        // 2. CONSULTA A LA VISTA "resumen_diario"
         const { data: stats, error } = await supabase
             .from('resumen_diario')
             .select('fecha, riesgo, total_minutos')
@@ -252,12 +256,11 @@
 
         // Llenar con datos de la VISTA
         stats.forEach(item => {
-            const dateStr = item.fecha; // La vista ya devuelve YYYY-MM-DD
+            const dateStr = item.fecha; 
             if (dailyStats[dateStr]) {
                 let nivel = item.riesgo || 'Normal';
                 if (nivel === 'Alto riesgo') nivel = 'Alto';
                 
-                // Sumamos los minutos pre-calculados
                 if (dailyStats[dateStr][nivel] !== undefined) {
                     dailyStats[dateStr][nivel] += item.total_minutos; 
                     dailyStats[dateStr].Total += item.total_minutos;
@@ -309,7 +312,7 @@
                         tension: 0.3,
                         pointRadius: isMobile ? 2 : 3,
                         pointHoverRadius: 5,
-                        pointHitRadius: 40, // Área táctil grande
+                        pointHitRadius: 40,
                         fill: true 
                     },
                     {
@@ -355,11 +358,11 @@
                 maintainAspectRatio: false,
                 resizeDelay: 200,
                 
-                // INTERACCIÓN: Ajustada para evitar el problema del "toque opuesto"
+                // INTERACCIÓN MEJORADA: 'nearest' y 'intersect: false' para móviles
                 interaction: {
-                    mode: 'nearest',   // 'nearest' suele ser más preciso en táctil que 'index'
-                    axis: 'x',         // Busca el punto más cercano en el eje X
-                    intersect: false   // No obliga a tocar el punto exacto
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
                 },
 
                 layout: { padding: { top: 20, left: 5, right: 10, bottom: 0 } },
@@ -369,11 +372,16 @@
                         ticks: { 
                             color: '#94a3b8', 
                             font: { size: isMobile ? 10 : 11 },
+                            
+                            // Rotación: Inclinada en PC, Horizontal en Móvil
                             minRotation: isMobile ? 0 : 45, 
                             maxRotation: isMobile ? 0 : 45,
+                            
+                            // Ajuste automático de espacio
                             autoSkip: true, 
-                            autoSkipPadding: 15, // Un poco más de aire entre fechas
+                            autoSkipPadding: 15,
                             maxTicksLimit: isMobile ? 12 : 31,
+                            
                             callback: function(val) {
                                 const label = this.getLabelForValue(val);
                                 return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
@@ -398,40 +406,32 @@
                     legend: { display: false },
                     title: { display: false },
                     
-                    // --- AQUÍ ARREGLAMOS LA VENTANA EMERGENTE (TOOLTIP) ---
+                    // CONFIGURACIÓN DE TOOLTIP COMPACTO
                     tooltip: {
                         enabled: true,
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)', // Fondo oscuro casi sólido
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
                         
-                        // 1. FUENTES PEQUEÑAS EN MÓVIL
-                        titleFont: { size: isMobile ? 10 : 13, weight: 'bold' },
-                        bodyFont: { size: isMobile ? 10 : 12 },
+                        // Fuentes pequeñas en móvil
+                        titleFont: { size: isMobile ? 11 : 13, weight: 'bold' },
+                        bodyFont: { size: isMobile ? 11 : 12 },
                         footerFont: { size: isMobile ? 9 : 11 },
                         
-                        // 2. REDUCIR ESPACIOS (PADDING)
-                        padding: isMobile ? 6 : 10,
+                        padding: isMobile ? 8 : 10,
                         bodySpacing: isMobile ? 3 : 6,
                         
-                        // 3. CUADRITO DE COLOR DIMINUTO
-                        boxWidth: isMobile ? 6 : 10,
-                        boxHeight: isMobile ? 6 : 10,
+                        // Cuadrito de color pequeño
+                        boxWidth: isMobile ? 8 : 10,
+                        boxHeight: isMobile ? 8 : 10,
                         
-                        // 4. POSICIÓN FIJA (Para que no tape el dedo)
-                        // 'nearest' pone el tooltip cerca del punto, pero 'yAlign: bottom'
-                        // fuerza a que la "colita" del tooltip esté abajo, es decir,
-                        // la ventana sale ARRIBA del punto.
+                        // Posición FIJA ARRIBA del dedo
                         yAlign: 'bottom', 
                         
                         displayColors: true,
                         callbacks: {
-                            title: function(context) {
-                                return context[0].label;
-                            },
+                            title: function(context) { return context[0].label; },
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (context.parsed.y !== null) {
-                                    return ' ' + label + ': ' + context.parsed.y.toFixed(0) + '%';
-                                }
+                                if (context.parsed.y !== null) label += ': ' + context.parsed.y.toFixed(0) + '%';
                                 return label;
                             }
                         }
@@ -445,6 +445,7 @@
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
+                // Scroll inicial a la derecha
                 if (scrollWrapper && scrollWrapper.scrollWidth > scrollWrapper.clientWidth) {
                     scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
                 }
@@ -455,32 +456,27 @@
     // --- FUNCIÓN PARA CREAR BOTONES DE LEYENDA ---
     function generateHtmlLegend(chart) {
         const legendContainer = document.getElementById('customLegend');
-        legendContainer.innerHTML = ''; // Limpiar previo
+        legendContainer.innerHTML = ''; 
 
         chart.data.datasets.forEach((dataset, index) => {
-            // Crear botón
             const item = document.createElement('div');
             item.className = 'legend-item';
             
-            // Crear bolita de color
             const colorBox = document.createElement('span');
             colorBox.className = 'legend-color-box';
             colorBox.style.backgroundColor = dataset.borderColor;
 
-            // Texto
             const text = document.createElement('span');
             text.textContent = dataset.label;
 
             item.appendChild(colorBox);
             item.appendChild(text);
 
-            // Acción al hacer click
             item.onclick = () => {
-                // Alternar visibilidad en la gráfica
                 const isVisible = chart.isDatasetVisible(index);
                 if (isVisible) {
                     chart.hide(index);
-                    item.classList.add('hidden'); // Añadir clase visual de "apagado"
+                    item.classList.add('hidden');
                 } else {
                     chart.show(index);
                     item.classList.remove('hidden');
@@ -501,7 +497,7 @@
         });
     }
 
-    // --- LÓGICA DE HISTORIAL (Mantenida igual) ---
+    // --- LÓGICA DE HISTORIAL ---
     const tableBody = document.getElementById('historyTable');
     const prevBtn = document.getElementById('prevPage');
     const nextBtn = document.getElementById('nextPage');

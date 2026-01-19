@@ -311,33 +311,34 @@ canvas {
   overflow-x: hidden;
 }
 
-/* Ajustes Móviles */
 @media (max-width: 768px) {
   .chart-container {
     padding: 0; 
   }
 
-  /* Contenedor CON SCROLL activado */
+  /* 1. El contenedor con scroll */
   .chart-scroll-wrapper {
-    height: 350px; 
     width: 100%;
-    overflow-x: auto; /* <--- SCROLL ACTIVO */
+    overflow-x: auto; 
     -webkit-overflow-scrolling: touch;
-    
-    /* Fondo sutil para indicar deslizamiento */
-    background: linear-gradient(to right, #1e293b 30%, rgba(255,255,255,0) 0%);
+    padding-bottom: 5px; /* Espacio para la barra de scroll */
   }
 
-  /* EL LIENZO */
-  .chart-scroll-wrapper canvas {
-    /* 700px es el equilibrio. Genera scroll, pero no es kilométrico.
-       Los 30 días caben bien (aprox 23px por día). */
-    min-width: 700px; 
+  /* 2. La CAJA INTERNA (Aquí definimos el tamaño real) */
+  .chart-body {
+    height: 350px;       /* Altura fija */
+    min-width: 700px;    /* Ancho forzado para que respiren los datos */
+    position: relative;  /* CRUCIAL para que Chart.js detecte bien el touch */
+  }
+
+  /* 3. El Canvas simplemente llena la caja */
+  .chart-body canvas {
+    width: 100% !important;
     height: 100% !important;
   }
   
-  /* Leyenda externa ajustada */
-  .chart-legend-html { gap: 5px; margin-bottom: 5px; }
+  /* Ajustes de leyenda */
+  .chart-legend-html { gap: 5px; margin-bottom: 10px; }
   .legend-item { padding: 4px 10px; font-size: 11px; }
 }
 
