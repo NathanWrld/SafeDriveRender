@@ -313,35 +313,30 @@ canvas {
 
 /* Ajustes Móviles */
 @media (max-width: 768px) {
-  .chart-container { padding: 10px 5px; }
-
-  .chart-legend-html { gap: 8px; }
-  
-  .legend-item {
-      padding: 5px 10px;
-      font-size: 12px; /* Tamaño legible en móvil */
+  .chart-container {
+    padding: 0; 
   }
 
   .chart-scroll-wrapper {
-    height: 350px; /* Altura cómoda */
-    overflow-x: auto; 
+    height: 350px; /* Altura fija */
+    overflow-x: auto; /* <--- SCROLL ACTIVADO */
     -webkit-overflow-scrolling: touch;
     
-    /* Sombra interna sutil para indicar que hay más contenido */
-    background: linear-gradient(to right, #1e293b 30%, rgba(255,255,255,0) 0%); 
-    background-size: 50px 100%;
-    background-repeat: no-repeat;
+    /* Indicador visual de que hay más contenido a la derecha */
+    background: linear-gradient(to right, #1e293b 30%, rgba(255,255,255,0) 0%);
   }
 
-  /* EL LIENZO GIGANTE */
   .chart-scroll-wrapper canvas {
-    /* 1500px divididos entre 30 días = 50px de espacio por día. 
-       Esto separa visualmente todo. */
-    min-width: 1500px; 
+    /* 1200px es el ancho mágico. 
+       Los 30 días caben holgados y se ven todos los textos sin girar. */
+    min-width: 1200px; 
     height: 100% !important;
   }
+  
+  /* Ajuste de botones de leyenda */
+  .chart-legend-html { gap: 5px; margin-bottom: 5px; }
+  .legend-item { padding: 4px 10px; font-size: 11px; }
 }
-
 /* ==========================================================================
    BOTONES
    ========================================================================== */

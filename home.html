@@ -305,10 +305,10 @@
                         data: dNormal,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: 2,       // Línea estándar
-                        tension: 0.4,         // Curva suave
-                        pointRadius: 3,       // Punto visible pero no gigante
-                        pointHitRadius: 40,   // Área táctil grande
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 3,         
+                        pointHitRadius: 40,     // Facilita tocar
                         fill: true 
                     },
                     {
@@ -317,7 +317,7 @@
                         borderColor: '#facc15',
                         backgroundColor: 'rgba(250, 204, 21, 0.2)',
                         borderWidth: 2,
-                        tension: 0.4,
+                        tension: 0.3,
                         pointRadius: 3,
                         pointHitRadius: 40,
                         fill: true
@@ -328,7 +328,7 @@
                         borderColor: '#f97316',
                         backgroundColor: 'rgba(249, 115, 22, 0.2)',
                         borderWidth: 2,
-                        tension: 0.4,
+                        tension: 0.3,
                         pointRadius: 3,
                         pointHitRadius: 40,
                         fill: true
@@ -339,7 +339,7 @@
                         borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         borderWidth: 2,
-                        tension: 0.4,
+                        tension: 0.3,
                         pointRadius: 3,
                         pointHitRadius: 40,
                         fill: true
@@ -354,7 +354,7 @@
                 // INTERACCIÓN
                 interaction: {
                     mode: 'index',
-                    intersect: false, // Permite tocar la columna entera
+                    intersect: false, // Permite tocar la columna, no el punto exacto
                     axis: 'x'
                 },
 
@@ -366,10 +366,13 @@
                             color: '#94a3b8', 
                             font: { size: 11 },
                             maxRotation: 0, 
-                            autoSkip: false, // <--- AHORA SÍ: Muestra TODOS los días
+                            
+                            // CONFIGURACIÓN PARA VER LOS 30 DÍAS:
+                            autoSkip: false, // <--- MUESTRA TODOS LOS DÍAS
+                            
                             callback: function(val) {
                                 const label = this.getLabelForValue(val);
-                                // En móvil mostramos día y mes (ej: "19/01") para aprovechar el espacio
+                                // En móvil mostramos día y mes (ej: "19/01")
                                 if (isMobile) {
                                     const parts = label.split('-');
                                     return `${parts[2]}/${parts[1]}`;
@@ -392,12 +395,11 @@
                     }
                 },
                 plugins: {
-                    legend: { display: false }, // Leyenda interna oculta (Usamos botones HTML)
+                    legend: { display: false }, // Usamos botones externos
                     title: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        padding: 12,
-                        cornerRadius: 8,
+                        padding: 10,
                         displayColors: true,
                         callbacks: {
                             title: function(context) {
