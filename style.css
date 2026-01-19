@@ -323,14 +323,21 @@ canvas {
   }
 
   .chart-scroll-wrapper {
-    height: 350px; 
+    height: 350px; /* Altura cómoda */
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch;
+    
+    /* Sombra interna sutil para indicar que hay más contenido */
+    background: linear-gradient(to right, #1e293b 30%, rgba(255,255,255,0) 0%); 
+    background-size: 50px 100%;
+    background-repeat: no-repeat;
   }
 
-  /* Ancho interno forzado para que los puntos se separen */
+  /* EL LIENZO GIGANTE */
   .chart-scroll-wrapper canvas {
-    min-width: 800px; 
+    /* 1500px divididos entre 30 días = 50px de espacio por día. 
+       Esto separa visualmente todo. */
+    min-width: 1500px; 
     height: 100% !important;
   }
 }

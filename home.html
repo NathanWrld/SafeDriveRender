@@ -295,7 +295,6 @@
 
         if (myChart) myChart.destroy();
 
-        // 1. CREAR GRÁFICA (Sin leyenda interna)
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -306,11 +305,10 @@
                         data: dNormal,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 3, 
-                        pointHoverRadius: 6,
-                        pointHitRadius: 30, // Facilita tocar el punto
+                        borderWidth: 2,       // Línea estándar
+                        tension: 0.4,         // Curva suave
+                        pointRadius: 3,       // Punto visible pero no gigante
+                        pointHitRadius: 40,   // Área táctil grande
                         fill: true 
                     },
                     {
@@ -321,8 +319,7 @@
                         borderWidth: 2,
                         tension: 0.4,
                         pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     },
                     {
@@ -333,8 +330,7 @@
                         borderWidth: 2,
                         tension: 0.4,
                         pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     },
                     {
@@ -345,8 +341,7 @@
                         borderWidth: 2,
                         tension: 0.4,
                         pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     }
                 ]
@@ -355,26 +350,38 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 resizeDelay: 200,
+                
+                // INTERACCIÓN
                 interaction: {
                     mode: 'index',
-                    intersect: false, // Permite tocar la línea vertical, no solo el punto
+                    intersect: false, // Permite tocar la columna entera
                     axis: 'x'
                 },
-                layout: { padding: { top: 10, left: 0, right: 10, bottom: 0 } },
+
+                layout: { padding: { top: 10, left: 10, right: 20, bottom: 0 } },
+                
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
                             font: { size: 11 },
                             maxRotation: 0, 
-                            autoSkip: true, // Limpia el eje X
-                            maxTicksLimit: isMobile ? 8 : 15,
+                            autoSkip: false, // <--- AHORA SÍ: Muestra TODOS los días
                             callback: function(val) {
                                 const label = this.getLabelForValue(val);
-                                return isMobile ? label.split('-')[2] : label;
+                                // En móvil mostramos día y mes (ej: "19/01") para aprovechar el espacio
+                                if (isMobile) {
+                                    const parts = label.split('-');
+                                    return `${parts[2]}/${parts[1]}`;
+                                }
+                                return label;
                             }
                         },
-                        grid: { color: '#334155', drawBorder: false }
+                        grid: { 
+                            color: '#334155', 
+                            drawBorder: false,
+                            display: true 
+                        }
                     },
                     y: {
                         beginAtZero: true,
@@ -385,19 +392,22 @@
                     }
                 },
                 plugins: {
-                    legend: {
-                        display: false // <--- APAGAMOS LA LEYENDA INTERNA (Culpable del error)
-                    },
+                    legend: { display: false }, // Leyenda interna oculta (Usamos botones HTML)
                     title: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        padding: 10,
-                        cornerRadius: 6,
+                        padding: 12,
+                        cornerRadius: 8,
                         displayColors: true,
                         callbacks: {
+                            title: function(context) {
+                                return "Fecha: " + context[0].label;
+                            },
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (context.parsed.y !== null) label += ': ' + context.parsed.y.toFixed(0) + '%';
+                                if (context.parsed.y !== null) {
+                                    return label + ': ' + context.parsed.y.toFixed(0) + '%';
+                                }
                                 return label;
                             }
                         }
@@ -406,10 +416,10 @@
             }
         });
 
-        // 2. GENERAR LEYENDA HTML PERSONALIZADA (Botones Reales)
+        // Generar botones de leyenda
         generateHtmlLegend(myChart);
 
-        // 3. AUTO-SCROLL EN MÓVIL
+        // Auto-scroll al final (derecha) en móvil
         if (isMobile) {
             setTimeout(() => {
                 const scrollWrapper = document.querySelector('.chart-scroll-wrapper');
