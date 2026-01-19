@@ -16,7 +16,7 @@
 <body>
 <header class="top-header">
     <div class="header-left">
-        <img src="logo.png" alt="Logo" class="logo">
+        <img src="img/Logo.png" alt="Logo" class="logo">
         <div class="burger" id="burgerBtn">☰</div>
     </div>
 </header>
@@ -308,42 +308,42 @@
                     {
                         label: 'Normal (%)',
                         data: dNormal,
-                        borderColor: '#10b981', // Verde
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)', 
-                        borderWidth: 2,
+                        borderColor: '#10b981', 
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)', // Más opaco para ver el volumen
+                        borderWidth: 0, // Sin borde para que se vea como masa
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0 // Sin puntos para el fondo normal
+                    },
+                    {
+                        label: 'Fatiga Leve (%)',
+                        data: dLeve,
+                        borderColor: '#facc15', 
+                        backgroundColor: 'rgba(250, 204, 21, 0.8)',
+                        borderWidth: 1,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'Somnolencia (%)',
+                        data: dModerado,
+                        borderColor: '#f97316', 
+                        backgroundColor: 'rgba(249, 115, 22, 0.9)',
+                        borderWidth: 1,
                         tension: 0.4,
                         fill: true,
                         pointRadius: 3
                     },
                     {
-                        label: 'Fatiga (%)',
-                        data: dLeve,
-                        borderColor: '#facc15', // Amarillo
-                        backgroundColor: 'rgba(250, 204, 21, 0.4)',
-                        borderWidth: 2,
+                        label: 'Microsueño (%)',
+                        data: dAlto,
+                        borderColor: '#ef4444', 
+                        backgroundColor: 'rgba(239, 68, 68, 1)',
+                        borderWidth: 1,
                         tension: 0.4,
                         fill: true,
                         pointRadius: 4
-                    },
-                    {
-                        label: 'Somnolencia (%)',
-                        data: dModerado,
-                        borderColor: '#f97316', // Naranja
-                        backgroundColor: 'rgba(249, 115, 22, 0.5)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 5
-                    },
-                    {
-                        label: 'Microsueño (%)',
-                        data: dAlto,
-                        borderColor: '#ef4444', // Rojo
-                        backgroundColor: 'rgba(239, 68, 68, 0.6)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 6
                     }
                 ]
             },
@@ -360,11 +360,12 @@
                         grid: { color: '#334155', drawBorder: false }
                     },
                     y: {
+                        stacked: true, // <--- ¡ESTA ES LA CLAVE! (Apila las líneas)
                         beginAtZero: true,
-                        max: 100, // Fijamos el máximo en 100%
+                        max: 100, 
                         ticks: { 
                             color: '#94a3b8',
-                            callback: function(value) { return value + "%" } // Añadir % al eje
+                            callback: function(value) { return value + "%" } 
                         },
                         grid: { color: '#334155', drawBorder: false },
                         title: {
@@ -384,14 +385,18 @@
                         bodyColor: '#cbd5e1',
                         borderColor: '#334155',
                         borderWidth: 1,
+                        itemSort: function(a, b) {
+                            return b.raw - a.raw; // Ordenar tooltip de mayor a menor
+                        },
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
                                 if (label) {
+                                    label = label.replace(' (%)', ''); // Limpiar etiqueta
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toFixed(1) + '% del tiempo';
+                                    label += context.parsed.y.toFixed(1) + '%';
                                 }
                                 return label;
                             }
