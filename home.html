@@ -188,26 +188,24 @@
 
     // Variables globales
     let myChart = null;
+    let currentUserId = null;
 
     // Inicializar
     async function initDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-            currentUserId = user.id; // Guardamos para el historial
+            currentUserId = user.id; 
             loadChartData(user.id);
-            fetchHistory(1); // Cargar también el historial
+            fetchHistory(1);
         }
     }
 
-    // Recargar gráfico al volver a la pestaña Inicio
     document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
         if(myChart) myChart.resize(); 
-        // Opcional: recargar datos frescos
-        // loadChartData(currentUserId); 
     });
 
+    // --- CARGA DE DATOS OPTIMIZADA (USANDO VISTA) ---
     async function loadChartData(userId) {
-        // Rango: Últimos 30 días
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
@@ -225,62 +223,56 @@
             return;
         }
 
-        // 2. Obtener CAPTURAS
-        const { data: capturas, error } = await supabase
-            .from('Capturas')
-            .select('hora_captura, nivel_riesgo_calculado')
+        // 2. CONSULTA A LA VISTA "resumen_diario" (Mucho más rápida y sin límite de filas)
+        const { data: stats, error } = await supabase
+            .from('resumen_diario')
+            .select('fecha, riesgo, total_minutos')
             .in('id_sesion', sessionIds)
-            .gte('hora_captura', startDate.toISOString())
-            .order('hora_captura', { ascending: true })
-            .limit(10000); // <--- ¡AQUÍ ESTÁ LA SOLUCIÓN! (Aumentamos el límite)
+            .gte('fecha', startDate.toISOString())
+            .order('fecha', { ascending: true });
 
         if (error) {
             console.error("Error cargando gráfico:", error);
             return;
         }
 
-        processAndRenderChart(capturas, startDate, endDate);
+        processAndRenderChart(stats, startDate, endDate);
     }
 
-    function processAndRenderChart(capturas, startDate, endDate) {
+    function processAndRenderChart(stats, startDate, endDate) {
         const dailyStats = {};
         
-        // Inicializar fechas vacías
+        // Inicializar calendario vacío
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0, Total: 0 };
         }
 
-        // Llenar datos (Contamos minutos)
-        capturas.forEach(c => {
-            const dateStr = c.hora_captura.split('T')[0];
+        // Llenar con datos de la VISTA
+        stats.forEach(item => {
+            const dateStr = item.fecha; // La vista ya devuelve YYYY-MM-DD
             if (dailyStats[dateStr]) {
-                let nivel = c.nivel_riesgo_calculado || 'Normal';
+                let nivel = item.riesgo || 'Normal';
                 if (nivel === 'Alto riesgo') nivel = 'Alto';
                 
+                // Sumamos los minutos pre-calculados
                 if (dailyStats[dateStr][nivel] !== undefined) {
-                    dailyStats[dateStr][nivel]++; // +1 minuto aprox
-                    dailyStats[dateStr].Total++;
+                    dailyStats[dateStr][nivel] += item.total_minutos; 
+                    dailyStats[dateStr].Total += item.total_minutos;
                 }
             }
         });
 
-        // Convertir a PORCENTAJES (%)
+        // Convertir a Porcentajes
         const labels = Object.keys(dailyStats);
-        
-        const dataNormal = [];
-        const dataLeve = [];
-        const dataModerado = [];
-        const dataAlto = [];
+        const dataNormal = [], dataLeve = [], dataModerado = [], dataAlto = [];
 
         labels.forEach(date => {
             const day = dailyStats[date];
-            const total = day.Total || 1; // Evitar división por cero
+            const total = day.Total || 1; 
 
-            // Calculamos el % de tiempo en cada estado
-            // Si el total es 0 (no condujo), dejamos todo en 0
             if (day.Total === 0) {
-                dataNormal.push(null); // null para que no dibuje punto
+                dataNormal.push(null); 
                 dataLeve.push(null);
                 dataModerado.push(null);
                 dataAlto.push(null);
@@ -297,7 +289,6 @@
 
     function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
-
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
@@ -309,11 +300,11 @@
                         label: 'Normal (%)',
                         data: dNormal,
                         borderColor: '#10b981', 
-                        backgroundColor: 'rgba(16, 185, 129, 0.6)', // Más opaco para ver el volumen
-                        borderWidth: 0, // Sin borde para que se vea como masa
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)', 
+                        borderWidth: 0, 
                         tension: 0.4,
                         fill: true,
-                        pointRadius: 0 // Sin puntos para el fondo normal
+                        pointRadius: 0 
                     },
                     {
                         label: 'Fatiga Leve (%)',
@@ -323,7 +314,7 @@
                         borderWidth: 1,
                         tension: 0.4,
                         fill: true,
-                        pointRadius: 2
+                        pointRadius: 3
                     },
                     {
                         label: 'Somnolencia (%)',
@@ -333,7 +324,7 @@
                         borderWidth: 1,
                         tension: 0.4,
                         fill: true,
-                        pointRadius: 3
+                        pointRadius: 4
                     },
                     {
                         label: 'Microsueño (%)',
@@ -343,61 +334,34 @@
                         borderWidth: 1,
                         tension: 0.4,
                         fill: true,
-                        pointRadius: 4
+                        pointRadius: 5
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
+                interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: {
-                        ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 },
-                        grid: { color: '#334155', drawBorder: false }
-                    },
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
                     y: {
-                        stacked: true, // <--- ¡ESTA ES LA CLAVE! (Apila las líneas)
+                        stacked: true, // APILADO
                         beginAtZero: true,
                         max: 100, 
-                        ticks: { 
-                            color: '#94a3b8',
-                            callback: function(value) { return value + "%" } 
-                        },
-                        grid: { color: '#334155', drawBorder: false },
-                        title: {
-                            display: true,
-                            text: 'Distribución del Tiempo de Viaje',
-                            color: '#cbd5e1'
-                        }
+                        ticks: { color: '#94a3b8', callback: v => v + "%" },
+                        grid: { color: '#334155' },
+                        title: { display: true, text: 'Distribución del Tiempo', color: '#cbd5e1' }
                     }
                 },
                 plugins: {
-                    legend: {
-                        labels: { color: '#fff', usePointStyle: true, boxWidth: 8 }
-                    },
+                    legend: { labels: { color: '#fff', usePointStyle: true } },
                     tooltip: {
                         backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        titleColor: '#fff',
-                        bodyColor: '#cbd5e1',
-                        borderColor: '#334155',
-                        borderWidth: 1,
-                        itemSort: function(a, b) {
-                            return b.raw - a.raw; // Ordenar tooltip de mayor a menor
-                        },
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) {
-                                    label = label.replace(' (%)', ''); // Limpiar etiqueta
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toFixed(1) + '%';
-                                }
+                                if (label) label = label.replace(' (%)', '') + ': ';
+                                if (context.parsed.y !== null) label += context.parsed.y.toFixed(1) + '%';
                                 return label;
                             }
                         }
@@ -410,20 +374,14 @@
     function renderEmptyChart() {
         const ctx = document.getElementById('fatigueChart').getContext('2d');
         if (myChart) myChart.destroy();
-        
         myChart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: ['Sin datos'],
-                datasets: [{ label: 'Sin actividad', data: [], borderColor: '#334155' }]
-            },
+            data: { labels: ['Sin datos'], datasets: [{ label: 'Sin actividad', data: [], borderColor: '#334155' }] },
             options: { responsive: true, plugins: { legend: { display: false } } }
         });
     }
 
-    // ==========================================
-    // LÓGICA DEL HISTORIAL (Misma de antes)
-    // ==========================================
+    // --- LÓGICA DE HISTORIAL (Mantenida igual) ---
     const tableBody = document.getElementById('historyTable');
     const prevBtn = document.getElementById('prevPage');
     const nextBtn = document.getElementById('nextPage');
@@ -431,7 +389,6 @@
     const btnFilter = document.getElementById('applyFilters');
     let currentPage = 1;
     const pageSize = 10;
-    let currentUserId = null;
 
     btnFilter.addEventListener('click', () => fetchHistory(1));
     prevBtn.addEventListener('click', () => { if(currentPage > 1) fetchHistory(currentPage - 1); });
