@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN DEFINITIVA: Vinculación forense de Alertas con Capturas
+// VERSIÓN CORREGIDA: Valor medido dinámico
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -257,14 +257,15 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
-                // Envío inmediato de alerta a BD
+                // CORRECCIÓN AQUÍ: Pasamos el valor real "closureDuration"
                 sendDetectionEvent({
                     type: 'ALERTA',
                     sessionId,
                     blinkRate: totalBlinksLastMinute,
                     ear: smoothedEAR,
                     riskLevel,
-                    immediate: true
+                    immediate: true,
+                    realDuration: closureDuration // <--- NUEVO PARAMETRO CON EL VALOR REAL
                 });
             }
         } 
@@ -392,12 +393,25 @@ export function stopDetection(cameraRef) {
     if (warningPopup) warningPopup.classList.remove('active');
 }
 
-// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE (FORENSE) ---
-async function sendDetectionEvent({ type, sessionId, blinkRate, slowBlinks = 0, ear, riskLevel, probabilidad = 0, yawnDetected, totalBlinks, totalYawns, immediate = false }) {
+// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE (MEJORADA) ---
+// Ahora acepta realDuration para no enviar un valor fijo
+async function sendDetectionEvent({ 
+    type, 
+    sessionId, 
+    blinkRate, 
+    slowBlinks = 0, 
+    ear, 
+    riskLevel, 
+    probabilidad = 0, 
+    yawnDetected, 
+    totalBlinks, 
+    totalYawns, 
+    immediate = false,
+    realDuration = 0 // <--- NUEVO PARÁMETRO
+}) {
     if (!sessionId) return;
 
     try {
-        // Datos comunes para la Captura
         const captureData = {
             id_sesion: sessionId,
             hora_captura: new Date().toISOString(),
@@ -409,52 +423,52 @@ async function sendDetectionEvent({ type, sessionId, blinkRate, slowBlinks = 0, 
             nivel_riesgo_calculado: riskLevel
         };
 
-        // CASO A: Registro Periódico (Solo insertamos en Capturas)
         if (type === 'CAPTURA') {
             const { error } = await supabase.from('Capturas').insert([captureData]);
             if (error) console.error('Error guardando Captura:', error.message);
             else console.log("💾 Captura periódica guardada");
         } 
         
-        // CASO B: Alerta (Insertamos Captura SNAPSHOT + Alerta VINCULADA)
         else if (type === 'ALERTA') {
             
-            // 1. Crear Snapshot de Captura (Forenses) y obtener ID
             const { data: snapshotData, error: snapError } = await supabase
                 .from('Capturas')
                 .insert([captureData])
-                .select(); // .select() devuelve el registro insertado
+                .select();
 
             if (snapError) {
                 console.error('Error creando snapshot:', snapError.message);
                 return;
             }
 
-            const relatedCaptureId = snapshotData[0].id_captura; // ID DE LA FOTO INSTANTÁNEA
+            const relatedCaptureId = snapshotData[0].id_captura;
 
-            // 2. Preparar datos de Alerta
             let causa = "Fatiga General";
             let valor = probabilidad;
 
-            if (riskLevel === 'Alto riesgo') { causa = "Microsueño"; valor = 2.0; }
+            if (riskLevel === 'Alto riesgo') { 
+                causa = "Microsueño"; 
+                // CORRECCIÓN: Usamos el valor real si existe, sino 2.0 por defecto
+                valor = realDuration > 0 ? parseFloat(realDuration.toFixed(2)) : 2.0; 
+            }
             else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
             else if (slowBlinks >= 2) { causa = "Parpadeos Lentos"; valor = parseFloat(slowBlinks); }
 
-            // 3. Guardar Alerta vinculada
             const { error: alertError } = await supabase.from('Alertas').insert([{
                 id_sesion: sessionId,
-                id_captura: relatedCaptureId, // <--- AQUI YA NO SERÁ NULL
+                id_captura: relatedCaptureId,
                 tipo_alerta: "Sonora/Visual",
                 nivel_riesgo: riskLevel,
                 causa_detonante: causa,
-                valor_medido: valor,
+                valor_medido: valor, // <--- Aquí ya no será siempre 2
                 fecha_alerta: new Date().toISOString()
             }]);
 
             if (alertError) console.error('Error guardando Alerta:', alertError.message);
-            else console.log(`🚨 Alerta guardada (ID Captura: ${relatedCaptureId})`);
+            else console.log(`🚨 Alerta guardada (Valor: ${valor})`);
         }
+
     } catch (err) {
-        console.error('Error crítico Supabase:', err);
+        console.error('Error crítico en envío:', err);
     }
 }
