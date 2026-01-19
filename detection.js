@@ -1,5 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
+// VERSIÓN DEFINITIVA: Vinculación forense de Alertas con Capturas
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -17,7 +18,7 @@ const warningPopup = document.getElementById('warningPopup');
 let moderateAlertCooldown = false;
 let moderateWarningCount = 0; 
 let lastWarningTime = 0; 
-let lastCaptureMinute = 0; // Control para guardar cada minuto
+let lastCaptureMinute = 0; 
 
 export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId }) {
     const canvasCtx = canvasElement.getContext('2d');
@@ -391,25 +392,47 @@ export function stopDetection(cameraRef) {
     if (warningPopup) warningPopup.classList.remove('active');
 }
 
-// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE ---
+// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE (FORENSE) ---
 async function sendDetectionEvent({ type, sessionId, blinkRate, slowBlinks = 0, ear, riskLevel, probabilidad = 0, yawnDetected, totalBlinks, totalYawns, immediate = false }) {
     if (!sessionId) return;
 
     try {
+        // Datos comunes para la Captura
+        const captureData = {
+            id_sesion: sessionId,
+            hora_captura: new Date().toISOString(),
+            frecuencia_parpadeo: blinkRate,
+            parpadeos_lentos: slowBlinks,
+            bostezos: totalYawns, 
+            promedio_ear: Number(ear.toFixed(6)),
+            probabilidad_somnolencia: probabilidad,
+            nivel_riesgo_calculado: riskLevel
+        };
+
+        // CASO A: Registro Periódico (Solo insertamos en Capturas)
         if (type === 'CAPTURA') {
-            await supabase.from('Capturas').insert([{
-                id_sesion: sessionId,
-                hora_captura: new Date().toISOString(),
-                frecuencia_parpadeo: blinkRate,
-                parpadeos_lentos: slowBlinks,
-                bostezos: totalYawns, 
-                promedio_ear: Number(ear.toFixed(6)),
-                probabilidad_somnolencia: probabilidad,
-                nivel_riesgo_calculado: riskLevel
-            }]);
-            console.log("💾 Captura guardada");
+            const { error } = await supabase.from('Capturas').insert([captureData]);
+            if (error) console.error('Error guardando Captura:', error.message);
+            else console.log("💾 Captura periódica guardada");
         } 
+        
+        // CASO B: Alerta (Insertamos Captura SNAPSHOT + Alerta VINCULADA)
         else if (type === 'ALERTA') {
+            
+            // 1. Crear Snapshot de Captura (Forenses) y obtener ID
+            const { data: snapshotData, error: snapError } = await supabase
+                .from('Capturas')
+                .insert([captureData])
+                .select(); // .select() devuelve el registro insertado
+
+            if (snapError) {
+                console.error('Error creando snapshot:', snapError.message);
+                return;
+            }
+
+            const relatedCaptureId = snapshotData[0].id_captura; // ID DE LA FOTO INSTANTÁNEA
+
+            // 2. Preparar datos de Alerta
             let causa = "Fatiga General";
             let valor = probabilidad;
 
@@ -417,17 +440,21 @@ async function sendDetectionEvent({ type, sessionId, blinkRate, slowBlinks = 0, 
             else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
             else if (slowBlinks >= 2) { causa = "Parpadeos Lentos"; valor = parseFloat(slowBlinks); }
 
-            await supabase.from('Alertas').insert([{
+            // 3. Guardar Alerta vinculada
+            const { error: alertError } = await supabase.from('Alertas').insert([{
                 id_sesion: sessionId,
+                id_captura: relatedCaptureId, // <--- AQUI YA NO SERÁ NULL
                 tipo_alerta: "Sonora/Visual",
                 nivel_riesgo: riskLevel,
                 causa_detonante: causa,
                 valor_medido: valor,
                 fecha_alerta: new Date().toISOString()
             }]);
-            console.log("🚨 Alerta guardada");
+
+            if (alertError) console.error('Error guardando Alerta:', alertError.message);
+            else console.log(`🚨 Alerta guardada (ID Captura: ${relatedCaptureId})`);
         }
     } catch (err) {
-        console.error('Error Supabase:', err);
+        console.error('Error crítico Supabase:', err);
     }
 }
