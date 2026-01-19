@@ -309,7 +309,7 @@
                         tension: 0.3,
                         pointRadius: isMobile ? 2 : 3,
                         pointHoverRadius: 5,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40, // Área táctil grande
                         fill: true 
                     },
                     {
@@ -321,7 +321,7 @@
                         tension: 0.3,
                         pointRadius: isMobile ? 2 : 3,
                         pointHoverRadius: 5,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     },
                     {
@@ -333,7 +333,7 @@
                         tension: 0.3,
                         pointRadius: isMobile ? 2 : 3,
                         pointHoverRadius: 5,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     },
                     {
@@ -345,7 +345,7 @@
                         tension: 0.3,
                         pointRadius: isMobile ? 2 : 3,
                         pointHoverRadius: 5,
-                        pointHitRadius: 30,
+                        pointHitRadius: 40,
                         fill: true
                     }
                 ]
@@ -355,44 +355,31 @@
                 maintainAspectRatio: false,
                 resizeDelay: 200,
                 
+                // INTERACCIÓN: Ajustada para evitar el problema del "toque opuesto"
                 interaction: {
-                    mode: 'index',
-                    intersect: false,
-                    axis: 'x'
+                    mode: 'nearest',   // 'nearest' suele ser más preciso en táctil que 'index'
+                    axis: 'x',         // Busca el punto más cercano en el eje X
+                    intersect: false   // No obliga a tocar el punto exacto
                 },
 
-                layout: { padding: { top: 10, left: 5, right: 10, bottom: 0 } },
+                layout: { padding: { top: 20, left: 5, right: 10, bottom: 0 } },
                 
                 scales: {
                     x: {
                         ticks: { 
                             color: '#94a3b8', 
                             font: { size: isMobile ? 10 : 11 },
-                            
-                            // --- SOLUCIÓN ESCRITORIO ---
-                            // Si NO es móvil, forzamos rotación 45 grados (como te gustaba).
-                            // Si ES móvil, dejamos 0 grados (horizontal) para leer mejor.
                             minRotation: isMobile ? 0 : 45, 
                             maxRotation: isMobile ? 0 : 45,
-                            
-                            // --- SOLUCIÓN "PEGADAS" ---
-                            // autoSkip: true -> Chart.js ocultará etiquetas automáticamente si detecta
-                            // que se van a superponer. Esto evita que se vean pegadas.
                             autoSkip: true, 
-                            autoSkipPadding: 10, // Espacio mínimo entre fechas
-                            maxTicksLimit: isMobile ? 12 : 31, // En móvil limita un poco, en PC muestra todo lo posible
-                            
+                            autoSkipPadding: 15, // Un poco más de aire entre fechas
+                            maxTicksLimit: isMobile ? 12 : 31,
                             callback: function(val) {
                                 const label = this.getLabelForValue(val);
-                                // En móvil simplificamos la fecha (19/01)
                                 return isMobile ? label.split('-')[2] + '/' + label.split('-')[1] : label;
                             }
                         },
-                        grid: { 
-                            color: '#334155', 
-                            drawBorder: false,
-                            display: true 
-                        }
+                        grid: { color: '#334155', drawBorder: false, display: true }
                     },
                     y: {
                         beginAtZero: true,
@@ -410,18 +397,40 @@
                 plugins: {
                     legend: { display: false },
                     title: { display: false },
+                    
+                    // --- AQUÍ ARREGLAMOS LA VENTANA EMERGENTE (TOOLTIP) ---
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        padding: 10,
+                        enabled: true,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)', // Fondo oscuro casi sólido
+                        
+                        // 1. FUENTES PEQUEÑAS EN MÓVIL
+                        titleFont: { size: isMobile ? 10 : 13, weight: 'bold' },
+                        bodyFont: { size: isMobile ? 10 : 12 },
+                        footerFont: { size: isMobile ? 9 : 11 },
+                        
+                        // 2. REDUCIR ESPACIOS (PADDING)
+                        padding: isMobile ? 6 : 10,
+                        bodySpacing: isMobile ? 3 : 6,
+                        
+                        // 3. CUADRITO DE COLOR DIMINUTO
+                        boxWidth: isMobile ? 6 : 10,
+                        boxHeight: isMobile ? 6 : 10,
+                        
+                        // 4. POSICIÓN FIJA (Para que no tape el dedo)
+                        // 'nearest' pone el tooltip cerca del punto, pero 'yAlign: bottom'
+                        // fuerza a que la "colita" del tooltip esté abajo, es decir,
+                        // la ventana sale ARRIBA del punto.
+                        yAlign: 'bottom', 
+                        
                         displayColors: true,
                         callbacks: {
                             title: function(context) {
-                                return "Fecha: " + context[0].label;
+                                return context[0].label;
                             },
                             label: function(context) {
                                 let label = context.dataset.label || '';
                                 if (context.parsed.y !== null) {
-                                    return label + ': ' + context.parsed.y.toFixed(0) + '%';
+                                    return ' ' + label + ': ' + context.parsed.y.toFixed(0) + '%';
                                 }
                                 return label;
                             }
