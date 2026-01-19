@@ -281,20 +281,22 @@ canvas {
 
 @media (max-width: 768px) {
   .chart-container {
-    padding: 10px 0px; /* Quitamos padding lateral para ganar ancho */
+    padding: 0; /* Sin padding para ganar espacio */
+    margin-bottom: 20px;
   }
 
   .chart-scroll-wrapper {
-    /* Aumentamos de 350px a 420px para que la gráfica respire */
-    height: 420px; 
+    /* Altura reducida para que no ocupe toda la pantalla */
+    height: 300px; 
     
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch;
   }
 
   .chart-scroll-wrapper canvas {
-    /* Mantenemos el ancho extendido para el scroll */
-    min-width: 900px; 
+    /* Ancho reducido: 600px es suficiente para 30 días en móvil.
+       Se verá denso pero completo. */
+    min-width: 600px; 
     height: 100% !important;
   }
 }
