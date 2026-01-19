@@ -1,17 +1,25 @@
 // detection.js
-// SISTEMA DE DETECCIÓN CON TOLERANCIA Y PATRONES ACUMULATIVOS
+// SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
 
-const BACKEND_URL = 'https://safe-drive-backend.onrender.com';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+// --- CONFIGURACIÓN SUPABASE ---
+const supabaseUrl = 'https://roogjmgxghbuiogpcswy.supabase.co'
+const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+// --- AUDIO & UI ---
 const alarmAudio = document.getElementById('alarmSound');
 const notifyAudio = document.getElementById('notifySound');
 const warningPopup = document.getElementById('warningPopup');
 
-// Variables de control de notificaciones
+// --- VARIABLES DE CONTROL ---
 let moderateAlertCooldown = false;
 let moderateWarningCount = 0; 
 let lastWarningTime = 0; 
+let lastCaptureMinute = 0; // Control para guardar cada minuto
 
-export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef }) {
+export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId }) {
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
 
@@ -19,7 +27,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     canvasElement.style.display = isDev ? 'block' : 'none';
 
     // ===============================
-    // PARÁMETROS AJUSTADOS (MENOS SENSIBLES)
+    // PARÁMETROS
     // ===============================
     const SMOOTHING_WINDOW = 5;
     const BASELINE_FRAMES_INIT = 60;
@@ -28,7 +36,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     const CLOSED_FRAMES_THRESHOLD = 1;
     const DERIVATIVE_THRESHOLD = -0.0025;
     
-    // --- UMBRALES DE TIEMPO (TOLERANTES) ---
     const MICROSUEÑO_THRESHOLD = 2.0; 
     const MIN_SLOW_BLINK_DURATION = 0.5; 
     
@@ -40,12 +47,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     // ESTADO
     // ===============================
     let blinkTimestamps = [];
-    
-    // BUFFERS PARA DETECCIÓN DE PATRONES
-    let slowBlinksBuffer = []; // Guarda timestamps de parpadeos lentos
-    let yawnsBuffer = [];      // Guarda timestamps de bostezos
-    
-    let yawnCountTotal = 0; // Histórico total
+    let slowBlinksBuffer = []; 
+    let yawnsBuffer = [];      
+    let yawnCountTotal = 0; 
 
     let earHistory = [];
     let mouthHistory = [];
@@ -93,9 +97,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         return horizontal === 0 ? 0 : vAvg / horizontal;
     }
 
-    // ===============================
-    // ÍNDICES MEDIAPIPE
-    // ===============================
     const RIGHT_EYE_IDX = [33, 160, 158, 133, 153, 144];
     const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
     const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402];
@@ -111,9 +112,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         minTrackingConfidence: 0.55
     });
 
-    // ===============================
-    // PROCESAMIENTO
-    // ===============================
     faceMesh.onResults((results) => {
         if (!results.image) return;
 
@@ -133,7 +131,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         const lm = results.multiFaceLandmarks[0];
 
-        // --- CÁLCULOS MATEMÁTICOS ---
+        // --- CÁLCULOS ---
         const rightEAR = calculateEAR_px(lm, RIGHT_EYE_IDX);
         const leftEAR = calculateEAR_px(lm, LEFT_EYE_IDX);
         const earPx = (rightEAR + leftEAR) / 2;
@@ -143,7 +141,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const faceWidthPx = Math.max(...xs) - Math.min(...xs);
         const earRel = faceWidthPx > 0 ? earPx / faceWidthPx : earPx;
 
-        // --- CALIBRACIÓN INICIAL ---
+        // --- CALIBRACIÓN ---
         if (!initialCalibrationDone) {
             if (earRel > 0) baselineSamples.push(earRel);
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
@@ -165,14 +163,12 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const derivative = smoothedEAR - prevSmoothedEAR;
         prevSmoothedEAR = smoothedEAR;
 
-        // ===============================
-        // 1. DETECCIÓN DE BOSTEZO (ESTADO ACTUAL)
-        // ===============================
+        // --- DETECCIÓN DE BOSTEZO ---
         const MIN_YAWN_MAR = 0.50; 
         const CURRENT_YAWN_THRESHOLD = Math.max(dynamicMARBaseline * 1.4, MIN_YAWN_MAR);
         const isYawningNow = smoothedMAR > CURRENT_YAWN_THRESHOLD;
 
-        // --- CALIBRACIÓN DINÁMICA ---
+        // --- ADAPTACIÓN ---
         if (smoothedEAR > 0 && eyeState === 'open' && !isYawningNow) {
             dynamicEARBaseline = EMA_ALPHA * smoothedEAR + (1 - EMA_ALPHA) * dynamicEARBaseline;
         }
@@ -182,20 +178,16 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
-        // ===============================
-        // 2. LÓGICA DE OJOS Y PARPADEOS LENTOS
-        // ===============================
+        // --- LÓGICA DE OJOS ---
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
         if (consideredClosed) {
             if (isYawningNow) {
-                // Si bosteza, ignoramos los ojos. No cuenta para nada.
                 closedFrameCounter = 0; 
                 reopenGraceCounter = 0;
             } else {
                 closedFrameCounter++;
             }
-            
             reopenGraceCounter = 0;
             if (eyeState === 'open' && closedFrameCounter >= CLOSED_FRAMES_THRESHOLD) {
                 eyeState = 'closed';
@@ -204,15 +196,11 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             reopenGraceCounter++;
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
                 if (eyeState === 'closed') {
-                    // --- OJOS ABIERTOS: ANALIZAR DURACIÓN ---
                     const duration = closedFrameCounter / FPS;
-                    
-                    // Solo consideramos "Lento" si supera 0.5 segundos
                     if (duration > MIN_SLOW_BLINK_DURATION && duration < MICROSUEÑO_THRESHOLD) {
                         slowBlinksBuffer.push(Date.now());
-                        console.log(`🐢 Parpadeo Lento registrado: ${duration.toFixed(2)}s`);
+                        console.log(`🐢 Parpadeo Lento: ${duration.toFixed(2)}s`);
                     }
-
                     blinkTimestamps.push(Date.now());
                     eyeState = 'open';
                 }
@@ -221,17 +209,14 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             }
         }
 
-        // ===============================
-        // 3. LÓGICA DE BOSTEZOS (EVENTOS)
-        // ===============================
+        // --- LÓGICA DE BOSTEZOS ---
         if (isYawningNow) {
             yawnFrameCounter++;
             if (yawnFrameCounter / FPS >= MIN_YAWN_DURATION && mouthState === 'closed') {
-                // BOSTEZO REGISTRADO EN HISTORIAL
                 yawnsBuffer.push(Date.now());
                 yawnCountTotal++;
                 mouthState = 'open';
-                console.log("🥱 Bostezo registrado en historial");
+                console.log("🥱 Bostezo detectado");
             }
         } else {
             if (smoothedMAR < CURRENT_YAWN_THRESHOLD * 0.9) {
@@ -240,13 +225,9 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             }
         }
 
-        // ===============================
-        // 4. ANÁLISIS DE PATRONES (ULTIMOS 60 SEGUNDOS)
-        // ===============================
+        // --- ANÁLISIS 60s ---
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
-        
-        // Ventana de análisis de 60 segundos para fatiga moderada
         slowBlinksBuffer = slowBlinksBuffer.filter(ts => ts > now - 60000); 
         yawnsBuffer = yawnsBuffer.filter(ts => ts > now - 60000);
 
@@ -254,54 +235,43 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
         const recentSlowBlinks = slowBlinksBuffer.length;
         const recentYawns = yawnsBuffer.length;
 
-        // ===============================
-        // 5. DETERMINACIÓN DE RIESGO
-        // ===============================
+        // --- RIESGO ---
         let riskLevel = 'Normal';
         const closureDuration = closedFrameCounter / FPS;
         const popupContent = document.getElementById('popupTextContent');
 
-        // --- A. ALTO RIESGO (MICROSUEÑO - ACCIÓN INMEDIATA) ---
+        // A. ALTO RIESGO
         if (closureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             
             warningPopup.className = "warning-popup alert-red active";
             if (popupContent) {
-                popupContent.innerHTML = `
-                    <h3>🚨 ¡PELIGRO! 🚨</h3>
-                    <p>Mantenga los ojos abiertos.</p>
-                `;
+                popupContent.innerHTML = `<h3>🚨 ¡PELIGRO! 🚨</h3><p>Mantenga los ojos abiertos.</p>`;
             }
 
             if (alarmAudio && alarmAudio.paused) {
                 alarmAudio.currentTime = 0;
-                let playPromise = alarmAudio.play();
-                if (playPromise !== undefined) playPromise.catch(e => console.log(e));
+                alarmAudio.play().catch(e => console.log(e));
             }
 
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
+                // Envío inmediato de alerta a BD
                 sendDetectionEvent({
+                    type: 'ALERTA',
+                    sessionId,
                     blinkRate: totalBlinksLastMinute,
                     ear: smoothedEAR,
                     riskLevel,
-                    yawnDetected: false, 
-                    totalBlinks: totalBlinksLastMinute,
-                    totalYawns: yawnCountTotal,
                     immediate: true
                 });
             }
         } 
         
-        // --- B. MODERADO (SOLO POR ACUMULACIÓN DE FACTORES) ---
-        else if (
-            recentSlowBlinks >= 3 || 
-            recentYawns >= 2 || 
-            (recentYawns >= 1 && recentSlowBlinks >= 2)
-        ) {
+        // B. MODERADO
+        else if (recentSlowBlinks >= 3 || recentYawns >= 2 || (recentYawns >= 1 && recentSlowBlinks >= 2)) {
             riskLevel = 'Moderado';
             
-            // Apagar alarma fuerte
             if (alarmAudio && !alarmAudio.paused) {
                 alarmAudio.pause();
                 alarmAudio.currentTime = 0;
@@ -318,45 +288,37 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 }
 
                 if (popupContent) {
-                    let razon = "";
-                    if (recentYawns >= 2) razon = "Bostezos frecuentes detectados.";
-                    else if (recentSlowBlinks >= 3) razon = "Varios parpadeos lentos seguidos.";
-                    else razon = "Signos combinados de fatiga.";
-
-                    if (moderateWarningCount >= 3) {
-                        warningPopup.className = "warning-popup alert-red active";
-                        popupContent.innerHTML = `
-                            <h3>🛑 DESCANSO SUGERIDO</h3>
-                            <p>${razon}</p>
-                            <p>La fatiga es persistente.</p>
-                        `;
-                    } else {
-                        warningPopup.className = "warning-popup alert-orange active";
-                        popupContent.innerHTML = `
-                            <h3>⚠️ Atención</h3>
-                            <p>${razon}</p>
-                            <p>Manténgase alerta.</p>
-                        `;
-                    }
+                    let razon = recentYawns >= 2 ? "Bostezos frecuentes." : "Parpadeos lentos.";
+                    warningPopup.className = moderateWarningCount >= 3 ? "warning-popup alert-red active" : "warning-popup alert-orange active";
+                    popupContent.innerHTML = moderateWarningCount >= 3 
+                        ? `<h3>🛑 DESCANSO SUGERIDO</h3><p>${razon}</p><p>Fatiga persistente.</p>`
+                        : `<h3>⚠️ Atención</h3><p>${razon}</p><p>Manténgase alerta.</p>`;
                 }
 
-                // =======================================================
-                // FIX: BORRÓN Y CUENTA NUEVA
-                // =======================================================
+                // Envío de alerta a BD
+                sendDetectionEvent({
+                    type: 'ALERTA',
+                    sessionId,
+                    blinkRate: totalBlinksLastMinute,
+                    slowBlinks: recentSlowBlinks,
+                    ear: smoothedEAR,
+                    riskLevel,
+                    yawnDetected: (recentYawns > 0),
+                    totalYawns: recentYawns
+                });
+
+                // BORRÓN Y CUENTA NUEVA
                 slowBlinksBuffer = []; 
                 yawnsBuffer = [];
 
-                // Aumentamos el cooldown a 15 segundos para no ser pesados
                 moderateAlertCooldown = true;
-                setTimeout(() => {
-                    if (riskLevel !== 'Alto riesgo') warningPopup.classList.remove('active');
-                }, 6000);
+                setTimeout(() => { if (riskLevel !== 'Alto riesgo') warningPopup.classList.remove('active'); }, 6000);
                 setTimeout(() => moderateAlertCooldown = false, 15000);
             }
             lastModerateTimestamp = now;
         } 
 
-        // --- C. NORMAL / LEVE ---
+        // C. NORMAL
         else {
             if (totalBlinksLastMinute > 25) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
@@ -370,7 +332,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             }
         }
 
-        // --- DIBUJO ---
+        // --- DEV DRAW ---
         if (isDev) {
             drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
             drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
@@ -379,16 +341,28 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
             canvasCtx.restore();
         }
 
-        // --- ENVÍO DE DATOS ---
-        if (now % 10000 < 60) {
+        // --- ENVÍO PERIÓDICO (CAPTURA CADA MINUTO) ---
+        const currentMinute = Math.floor(now / 60000);
+        if (currentMinute > lastCaptureMinute && sessionId) {
+            
+            let prob = 0.0;
+            if (riskLevel === 'Leve') prob = 0.3;
+            if (riskLevel === 'Moderado') prob = 0.7;
+            if (riskLevel === 'Alto riesgo') prob = 1.0;
+
             sendDetectionEvent({
+                type: 'CAPTURA',
+                sessionId,
                 blinkRate: totalBlinksLastMinute,
+                slowBlinks: recentSlowBlinks,
                 ear: smoothedEAR,
                 riskLevel,
-                yawnDetected: (isYawningNow), 
+                probabilidad: prob,
                 totalBlinks: totalBlinksLastMinute,
                 totalYawns: yawnCountTotal
             });
+
+            lastCaptureMinute = currentMinute;
         }
 
         estado.innerHTML = `
@@ -413,32 +387,47 @@ export function stopDetection(cameraRef) {
         cameraRef.current.stop();
         cameraRef.current = null;
     }
-    if (alarmAudio) {
-        alarmAudio.pause();
-        alarmAudio.currentTime = 0;
-    }
-    if (warningPopup) {
-        warningPopup.classList.remove('active');
-    }
+    if (alarmAudio) { alarmAudio.pause(); alarmAudio.currentTime = 0; }
+    if (warningPopup) warningPopup.classList.remove('active');
 }
 
-async function sendDetectionEvent({ blinkRate, ear, riskLevel, yawnDetected, totalBlinks, totalYawns, immediate = false }) {
+// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE ---
+async function sendDetectionEvent({ type, sessionId, blinkRate, slowBlinks = 0, ear, riskLevel, probabilidad = 0, yawnDetected, totalBlinks, totalYawns, immediate = false }) {
+    if (!sessionId) return;
+
     try {
-        await fetch(`${BACKEND_URL}/api/detection-event`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                blink_rate: Number(blinkRate.toFixed(2)),
-                ear: Number(ear.toFixed(6)),
-                risk_level: riskLevel,
-                yawn_detected: yawnDetected,
-                total_blinks: totalBlinks,
-                total_yawns: totalYawns,
-                immediate_alert: immediate,
-                timestamp: new Date().toISOString()
-            })
-        });
+        if (type === 'CAPTURA') {
+            await supabase.from('Capturas').insert([{
+                id_sesion: sessionId,
+                hora_captura: new Date().toISOString(),
+                frecuencia_parpadeo: blinkRate,
+                parpadeos_lentos: slowBlinks,
+                bostezos: totalYawns, 
+                promedio_ear: Number(ear.toFixed(6)),
+                probabilidad_somnolencia: probabilidad,
+                nivel_riesgo_calculado: riskLevel
+            }]);
+            console.log("💾 Captura guardada");
+        } 
+        else if (type === 'ALERTA') {
+            let causa = "Fatiga General";
+            let valor = probabilidad;
+
+            if (riskLevel === 'Alto riesgo') { causa = "Microsueño"; valor = 2.0; }
+            else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
+            else if (slowBlinks >= 2) { causa = "Parpadeos Lentos"; valor = parseFloat(slowBlinks); }
+
+            await supabase.from('Alertas').insert([{
+                id_sesion: sessionId,
+                tipo_alerta: "Sonora/Visual",
+                nivel_riesgo: riskLevel,
+                causa_detonante: causa,
+                valor_medido: valor,
+                fecha_alerta: new Date().toISOString()
+            }]);
+            console.log("🚨 Alerta guardada");
+        }
     } catch (err) {
-        console.error('Error enviando evento:', err);
+        console.error('Error Supabase:', err);
     }
 }
