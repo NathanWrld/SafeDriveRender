@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN CORREGIDA: Valor medido dinámico
+// VERSIÓN FINAL: Terminología corregida (Somnolencia)
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -257,7 +257,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
 
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
-                // CORRECCIÓN AQUÍ: Pasamos el valor real "closureDuration"
                 sendDetectionEvent({
                     type: 'ALERTA',
                     sessionId,
@@ -265,7 +264,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     ear: smoothedEAR,
                     riskLevel,
                     immediate: true,
-                    realDuration: closureDuration // <--- NUEVO PARAMETRO CON EL VALOR REAL
+                    realDuration: closureDuration
                 });
             }
         } 
@@ -290,14 +289,14 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                 }
 
                 if (popupContent) {
-                    let razon = recentYawns >= 2 ? "Bostezos frecuentes." : "Parpadeos lentos.";
+                    // CAMBIO AQUI: Texto más natural
+                    let razon = recentYawns >= 2 ? "Bostezos frecuentes." : "Somnolencia detectada.";
                     warningPopup.className = moderateWarningCount >= 3 ? "warning-popup alert-red active" : "warning-popup alert-orange active";
                     popupContent.innerHTML = moderateWarningCount >= 3 
                         ? `<h3>🛑 DESCANSO SUGERIDO</h3><p>${razon}</p><p>Fatiga persistente.</p>`
                         : `<h3>⚠️ Atención</h3><p>${razon}</p><p>Manténgase alerta.</p>`;
                 }
 
-                // Envío de alerta a BD
                 sendDetectionEvent({
                     type: 'ALERTA',
                     sessionId,
@@ -309,7 +308,6 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
                     totalYawns: recentYawns
                 });
 
-                // BORRÓN Y CUENTA NUEVA
                 slowBlinksBuffer = []; 
                 yawnsBuffer = [];
 
@@ -393,8 +391,7 @@ export function stopDetection(cameraRef) {
     if (warningPopup) warningPopup.classList.remove('active');
 }
 
-// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE (MEJORADA) ---
-// Ahora acepta realDuration para no enviar un valor fijo
+// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE ---
 async function sendDetectionEvent({ 
     type, 
     sessionId, 
@@ -407,7 +404,7 @@ async function sendDetectionEvent({
     totalBlinks, 
     totalYawns, 
     immediate = false,
-    realDuration = 0 // <--- NUEVO PARÁMETRO
+    realDuration = 0
 }) {
     if (!sessionId) return;
 
@@ -448,11 +445,14 @@ async function sendDetectionEvent({
 
             if (riskLevel === 'Alto riesgo') { 
                 causa = "Microsueño"; 
-                // CORRECCIÓN: Usamos el valor real si existe, sino 2.0 por defecto
                 valor = realDuration > 0 ? parseFloat(realDuration.toFixed(2)) : 2.0; 
             }
             else if (yawnDetected) { causa = "Bostezos"; valor = parseFloat(totalYawns); }
-            else if (slowBlinks >= 2) { causa = "Parpadeos Lentos"; valor = parseFloat(slowBlinks); }
+            else if (slowBlinks >= 2) { 
+                // CAMBIO AQUI: "Somnolencia" en lugar de "Parpadeos Lentos"
+                causa = "Somnolencia"; 
+                valor = parseFloat(slowBlinks); 
+            }
 
             const { error: alertError } = await supabase.from('Alertas').insert([{
                 id_sesion: sessionId,
@@ -460,12 +460,12 @@ async function sendDetectionEvent({
                 tipo_alerta: "Sonora/Visual",
                 nivel_riesgo: riskLevel,
                 causa_detonante: causa,
-                valor_medido: valor, // <--- Aquí ya no será siempre 2
+                valor_medido: valor,
                 fecha_alerta: new Date().toISOString()
             }]);
 
             if (alertError) console.error('Error guardando Alerta:', alertError.message);
-            else console.log(`🚨 Alerta guardada (Valor: ${valor})`);
+            else console.log(`🚨 Alerta guardada: ${causa} (Valor: ${valor})`);
         }
 
     } catch (err) {
