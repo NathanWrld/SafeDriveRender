@@ -36,16 +36,18 @@
     <div id="closeSidebar" class="close-sidebar">✕</div>
 
     <div class="main normal-container">
+        
         <section id="inicio" class="card">
-            <h2>Resumen Últimos 30 Días</h2>
+            <h2>Resumen Mensual de Conducción</h2>
             <div class="chart-container">
                 <div class="chart-scroll-wrapper">
                     <canvas id="fatigueChart"></canvas> 
                 </div>
             </div>
-            <p>Datos sobre estados de fatiga o somnolencia del conductor en los últimos 30 días.</p>
-            <p>El sistema ha identificado indicadores recurrentes de fatiga o somnolencia en los últimos días.
-            <b>Se recomienda acudir a un profesional de la salud</b> para descartar astenia u otras condiciones médicas.</p>
+            <p>Visualización de los minutos acumulados por nivel de riesgo en los últimos 30 días.</p>
+            <div id="chartLegendInfo" style="margin-top:10px; font-size: 0.9em; color: #cbd5e1;">
+                <p>💡 <strong>Nota:</strong> Las barras verdes indican tiempo de conducción segura. Las barras de color (amarillo, naranja, rojo) indican momentos de fatiga detectada.</p>
+            </div>
         </section>
 
 
@@ -111,14 +113,16 @@
                             <option value="Microsueño">Microsueño</option>
                             <option value="Bostezos">Bostezos</option>
                             <option value="Somnolencia">Somnolencia</option> 
-                            <option value="Fatiga">Fatiga</option> </select>
+                            <option value="Fatiga">Fatiga</option>
+                        </select>
                     </div>
 
                     <div class="filter-item">
                         <label for="filterLevel">Nivel:</label>
                         <select id="filterLevel">
                             <option value="">Todos</option>
-                            <option value="Leve">Leve</option> <option value="Moderado">Moderado</option>
+                            <option value="Leve">Leve</option>
+                            <option value="Moderado">Moderado</option>
                             <option value="Alto riesgo">Alto riesgo</option>
                         </select>
                     </div>
@@ -170,103 +174,234 @@
 <script type="module" src="script.js"></script>
 <script src="burger-btn.js"></script>
 
-<script>
-    const riskLevels = ["Normal", "Leve", "Moderado", "Alto riesgo"];
-    const riskColors = ['#10b981','#facc15','#f97316','#ef4444'];
-    const fatigaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
-    const somnolenciaData = Array.from({length:30}, ()=>riskLevels[Math.floor(Math.random()*4)]);
-    const ctx = document.getElementById('fatigueChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Array.from({length:30}, (_,i)=>`Día ${i+1}`),
-            datasets: [
-                { label: 'Fatiga', data: fatigaData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', fill: true, tension: 0.4 },
-                { label: 'Somnolencia', data: somnolenciaData, borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.2)', fill: true, tension: 0.4 }
-            ]
-        },
-        options: { responsive:false, layout: { padding: { top: 30, bottom: 10 } }, scales: { y: { type: 'category', labels: riskLevels, reverse: true, ticks: { color:'#fff' } }, x: { ticks: { color:'#fff' } } }, plugins: { legend: { labels: { color:'#fff' } } } }
-    });
-</script>
-
 <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-    // Configuración
+    // 1. Configuración
     const supabaseUrl = 'https://roogjmgxghbuiogpcswy.supabase.co'
     const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Variables de Estado
-    let currentPage = 1;
-    const pageSize = 10;
-    let currentUserId = null;
+    // Variables globales del gráfico
+    let myChart = null;
 
-    // Elementos DOM
+    // Inicializar
+    async function initDashboard() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            loadChartData(user.id);
+        }
+    }
+
+    // Navegación Sidebar (Recargar gráfico al volver a Inicio)
+    document.querySelector('.menu-btn[data-target="inicio"]').addEventListener('click', () => {
+        const chartCanvas = document.getElementById('fatigueChart');
+        // Pequeño hack para forzar redibujado si cambia el tamaño
+        if(myChart) myChart.resize(); 
+        initDashboard();
+    });
+
+    async function loadChartData(userId) {
+        // 1. Calcular rango de fechas (Últimos 30 días)
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+
+        // 2. Obtener sesiones del usuario
+        const { data: sesiones } = await supabase
+            .from('sesiones_conduccion')
+            .select('id_sesion')
+            .eq('id_usuario', userId);
+        
+        const sessionIds = sesiones ? sesiones.map(s => s.id_sesion) : [];
+
+        if (sessionIds.length === 0) {
+            renderEmptyChart();
+            return;
+        }
+
+        // 3. Obtener CAPTURAS (No alertas) de los últimos 30 días
+        // Solo traemos fecha y nivel de riesgo para no saturar la red
+        const { data: capturas, error } = await supabase
+            .from('Capturas')
+            .select('hora_captura, nivel_riesgo_calculado')
+            .in('id_sesion', sessionIds)
+            .gte('hora_captura', startDate.toISOString())
+            .order('hora_captura', { ascending: true });
+
+        if (error) {
+            console.error("Error cargando gráfico:", error);
+            return;
+        }
+
+        processAndRenderChart(capturas, startDate, endDate);
+    }
+
+    function processAndRenderChart(capturas, startDate, endDate) {
+        // Estructura de datos: { "2023-10-01": { Normal: 10, Leve: 2... }, "2023-10-02": ... }
+        const dailyStats = {};
+        
+        // Inicializar los últimos 30 días en 0 (para que el gráfico no tenga huecos)
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            dailyStats[dateStr] = { Normal: 0, Leve: 0, Moderado: 0, Alto: 0 };
+        }
+
+        // Llenar con datos reales
+        capturas.forEach(c => {
+            const dateStr = c.hora_captura.split('T')[0];
+            if (dailyStats[dateStr]) {
+                let nivel = c.nivel_riesgo_calculado || 'Normal';
+                if (nivel === 'Alto riesgo') nivel = 'Alto'; // Simplificar key
+                
+                // Normalización de nombres por si acaso
+                if (nivel === 'Alto riesgo') nivel = 'Alto';
+                
+                if (dailyStats[dateStr][nivel] !== undefined) {
+                    dailyStats[dateStr][nivel]++;
+                }
+            }
+        });
+
+        // Preparar arrays para Chart.js
+        const labels = Object.keys(dailyStats);
+        const dataNormal = labels.map(date => dailyStats[date].Normal);
+        const dataLeve = labels.map(date => dailyStats[date].Leve);
+        const dataModerado = labels.map(date => dailyStats[date].Moderado);
+        const dataAlto = labels.map(date => dailyStats[date].Alto);
+
+        renderChart(labels, dataNormal, dataLeve, dataModerado, dataAlto);
+    }
+
+    function renderChart(labels, dNormal, dLeve, dModerado, dAlto) {
+        const ctx = document.getElementById('fatigueChart').getContext('2d');
+
+        if (myChart) {
+            myChart.destroy(); // Destruir anterior para no sobreescribir
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'bar', // Cambiamos a BARRA APILADA para ver proporciones
+            data: {
+                labels: labels, // Fechas
+                datasets: [
+                    {
+                        label: 'Normal (Minutos)',
+                        data: dNormal,
+                        backgroundColor: '#10b981', // Verde
+                        stack: 'Stack 0',
+                    },
+                    {
+                        label: 'Fatiga Leve (Minutos)',
+                        data: dLeve,
+                        backgroundColor: '#facc15', // Amarillo
+                        stack: 'Stack 0',
+                    },
+                    {
+                        label: 'Riesgo Moderado (Minutos)',
+                        data: dModerado,
+                        backgroundColor: '#f97316', // Naranja
+                        stack: 'Stack 0',
+                    },
+                    {
+                        label: 'Alto Riesgo (Minutos)',
+                        data: dAlto,
+                        backgroundColor: '#ef4444', // Rojo
+                        stack: 'Stack 0',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        ticks: { color: '#cbd5e1' },
+                        grid: { color: '#334155' }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: { color: '#cbd5e1' },
+                        grid: { color: '#334155' },
+                        title: {
+                            display: true,
+                            text: 'Tiempo de Conducción (Minutos)',
+                            color: '#94a3b8'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#fff' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                }
+            }
+        });
+    }
+
+    function renderEmptyChart() {
+        const ctx = document.getElementById('fatigueChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Sin datos'],
+                datasets: [{ label: 'Sin actividad', data: [0], backgroundColor: '#334155' }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    // Lógica del Historial (Mantenida del paso anterior)
     const tableBody = document.getElementById('historyTable');
     const prevBtn = document.getElementById('prevPage');
     const nextBtn = document.getElementById('nextPage');
     const pageInfo = document.getElementById('pageInfo');
     const btnFilter = document.getElementById('applyFilters');
+    let currentPage = 1;
+    const pageSize = 10;
+    let currentUserId = null;
 
-    // Inicializar
-    async function initHistory() {
+    async function initAll() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             currentUserId = user.id;
-            fetchHistory(1);
+            loadChartData(user.id); // Cargar Gráfico Inicio
+            fetchHistory(1);        // Cargar Historial
         }
     }
 
-    document.querySelector('.menu-btn[data-target="historial"]').addEventListener('click', () => {
-        if(currentUserId) fetchHistory(1);
-    });
-
+    // Funciones del Historial (Ya corregidas previamente)
     btnFilter.addEventListener('click', () => fetchHistory(1));
     prevBtn.addEventListener('click', () => { if(currentPage > 1) fetchHistory(currentPage - 1); });
     nextBtn.addEventListener('click', () => fetchHistory(currentPage + 1));
 
-    // --- FUNCIÓN PRINCIPAL: TRAER DATOS ---
     async function fetchHistory(page) {
         if (!currentUserId) return;
-        
         tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando registros...</td></tr>';
         
         const fDate = document.getElementById('filterDate').value;
         const fType = document.getElementById('filterType').value;
         const fLevel = document.getElementById('filterLevel').value;
-
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
 
-        // 1. Obtener sesiones
-        const { data: sesiones } = await supabase
-            .from('sesiones_conduccion')
-            .select('id_sesion')
-            .eq('id_usuario', currentUserId);
-        
+        const { data: sesiones } = await supabase.from('sesiones_conduccion').select('id_sesion').eq('id_usuario', currentUserId);
         const sessionIds = sesiones ? sesiones.map(s => s.id_sesion) : [];
 
-        if (sessionIds.length === 0) {
-            renderTable([], 0);
-            return;
-        }
+        if (sessionIds.length === 0) { renderTable([], 0); return; }
 
-        // 2. Query a Alertas
-        let query = supabase
-            .from('Alertas')
-            .select('*', { count: 'exact' })
-            .in('id_sesion', sessionIds) 
-            .order('fecha_alerta', { ascending: false })
-            .range(from, to);
+        let query = supabase.from('Alertas').select('*', { count: 'exact' }).in('id_sesion', sessionIds).order('fecha_alerta', { ascending: false }).range(from, to);
 
         if (fLevel) query = query.eq('nivel_riesgo', fLevel);
-        
-        if (fType) {
-            // Buscamos tal cual en la BD
-            query = query.ilike('causa_detonante', `%${fType}%`);
-        }
-
+        if (fType) query = query.ilike('causa_detonante', `%${fType}%`);
         if (fDate) {
             const startDate = new Date(fDate);
             const endDate = new Date(fDate);
@@ -275,72 +410,44 @@
         }
 
         const { data, count, error } = await query;
-
-        if (error) {
-            console.error("Error historial:", error);
-            return;
-        }
-
-        currentPage = page;
-        renderTable(data, count);
+        if (!error) { currentPage = page; renderTable(data, count); }
     }
 
-    // --- RENDERIZADO HTML ---
     function renderTable(data, totalCount) {
         tableBody.innerHTML = '';
-
         if (!data || data.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No se encontraron alertas registradas.</td></tr>';
             pageInfo.textContent = `Página 1 de 1`;
             return;
         }
-
         data.forEach(alerta => {
             const row = document.createElement('tr');
-            
-            const fecha = new Date(alerta.fecha_alerta).toLocaleString('es-ES', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            });
-
+            const fecha = new Date(alerta.fecha_alerta).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             let levelClass = 'level-normal';
             if (alerta.nivel_riesgo === 'Alto riesgo') levelClass = 'level-alto';
             if (alerta.nivel_riesgo === 'Moderado') levelClass = 'level-moderado';
             if (alerta.nivel_riesgo === 'Leve') levelClass = 'level-leve';
 
-            // --- VISUALIZACIÓN ---
             let causaMostrar = alerta.causa_detonante || 'Desconocida';
             let valorDisplay = alerta.valor_medido ? alerta.valor_medido.toString() : '-';
 
-            // Agregamos unidades según la causa
-            if (causaMostrar.includes("Somnolencia")) {
-                valorDisplay += " eventos"; 
-            } else if (causaMostrar.includes("Microsueño")) {
-                valorDisplay += " seg";
-            } else if (causaMostrar.includes("Bostezos")) {
-                valorDisplay += " veces";
-            } else if (causaMostrar.includes("Fatiga")) {
-                valorDisplay += " parpadeos/min";
-            }
+            if (causaMostrar.includes("Somnolencia")) valorDisplay += " eventos"; 
+            else if (causaMostrar.includes("Microsueño")) valorDisplay += " seg";
+            else if (causaMostrar.includes("Bostezos")) valorDisplay += " veces";
+            else if (causaMostrar.includes("Fatiga")) valorDisplay += " parpadeos/min";
 
-            row.innerHTML = `
-                <td>${fecha}</td>
-                <td>${causaMostrar}</td>
-                <td class="${levelClass}">${alerta.nivel_riesgo}</td>
-                <td>${valorDisplay}</td>
-            `;
+            row.innerHTML = `<td>${fecha}</td><td>${causaMostrar}</td><td class="${levelClass}">${alerta.nivel_riesgo}</td><td>${valorDisplay}</td>`;
             tableBody.appendChild(row);
         });
-
         const totalPages = Math.ceil(totalCount / pageSize);
         pageInfo.textContent = `Página ${currentPage} de ${totalPages || 1}`;
-        
         prevBtn.disabled = currentPage === 1;
         nextBtn.disabled = currentPage >= totalPages;
         prevBtn.style.opacity = currentPage === 1 ? "0.5" : "1";
         nextBtn.style.opacity = currentPage >= totalPages ? "0.5" : "1";
     }
 
+    // Navegación Sidebar
     const menuBtns = document.querySelectorAll('.menu-btn');
     menuBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -352,7 +459,8 @@
         });
     });
 
-    initHistory();
+    // Arrancar todo
+    initAll();
 </script>
 
 </body>
