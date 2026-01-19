@@ -85,10 +85,11 @@ h1, h2 {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px ;
 }
 
 .logo {
-  max-width: 100px;
+  max-width: 120px;
   object-fit: contain;
 }
 
