@@ -609,7 +609,6 @@ video, canvas.output_canvas {
 }
 
 .page-btn svg { width: 24px; height: 24px; }
-#prevPage svg { transform: scale(-1); }
 
 /* ==========================================================================
    POP-UP PREVENTIVO
