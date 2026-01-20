@@ -115,10 +115,6 @@ h1, h2 {
     width: 100%;
 }
 
-#logoutBtn {
-    text-align: center;
-}
-
 /* Botón de tema */
 .theme-btn {
     background: transparent;
