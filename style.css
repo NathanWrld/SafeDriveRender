@@ -57,6 +57,8 @@ h1, h2 {
   color: var(--text-highlight);
 }
 
+h2 {margin-bottom: 20px;}
+
 .normal-container {
   width: 100%;
   max-width: 1400px;
