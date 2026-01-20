@@ -111,8 +111,7 @@ h1, h2 {
 
 /* Botón cerrar sesión y footer */
 .sidebar-footer {
-    margin-top: auto;
-    padding-bottom: 40px; /* Aumentado de 20px a 40px para evitar bordes de móvil */
+  margin-top: 20px;
     width: 100%;
 }
 
