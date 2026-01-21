@@ -154,17 +154,7 @@
 <meta name="theme-color" content="#1e293b">
 <link rel="apple-touch-icon" href="img/icon-192.png"> ```
 
-**B. Antes de cerrar el `</body>` (Para activar el Service Worker):**
-```html
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker registrado:', reg.scope))
-        .catch(err => console.log('Error Service Worker:', err));
-    });
-  }
-</script>
+
 </head>
 <!-- POPUP REGISTRO EXITOSO -->
 <div id="successModal" class="modal">
@@ -335,6 +325,16 @@
     });
 
 
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registrado:', reg.scope))
+        .catch(err => console.log('Error Service Worker:', err));
+    });
+  }
 </script>
 </body>
 </html>
