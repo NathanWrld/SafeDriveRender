@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN: Fatiga generalizada y unidades corregidas
+// VERSIÓN: Fatiga generalizada, unidades corregidas y WAKE LOCK
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -19,13 +19,26 @@ let moderateAlertCooldown = false;
 let moderateWarningCount = 0; 
 let lastWarningTime = 0; 
 let lastCaptureMinute = 0; 
+let wakeLock = null; // VARIABLE PARA EL BLOQUEO DE PANTALLA
 
-export function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId }) {
+export async function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId }) {
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
 
     videoElement.style.display = 'block';
     canvasElement.style.display = isDev ? 'block' : 'none';
+
+    // --- ACTIVAR WAKE LOCK (MANTENER PANTALLA ENCENDIDA) ---
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('💡 Pantalla mantenida encendida (Wake Lock activo)');
+        } else {
+            console.warn('⚠️ Wake Lock no soportado en este navegador.');
+        }
+    } catch (err) {
+        console.error(`Error activando Wake Lock: ${err.name}, ${err.message}`);
+    }
 
     // ===============================
     // PARÁMETROS
@@ -49,7 +62,7 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     // ===============================
     let blinkTimestamps = [];
     let slowBlinksBuffer = []; 
-    let yawnsBuffer = [];      
+    let yawnsBuffer = [];       
     let yawnCountTotal = 0; 
 
     let earHistory = [];
@@ -414,13 +427,24 @@ export function startDetection({ rol, videoElement, canvasElement, estado, camer
     cameraRef.current.start();
 }
 
-export function stopDetection(cameraRef) {
+export async function stopDetection(cameraRef) {
     if (cameraRef.current) {
         cameraRef.current.stop();
         cameraRef.current = null;
     }
     if (alarmAudio) { alarmAudio.pause(); alarmAudio.currentTime = 0; }
     if (warningPopup) warningPopup.classList.remove('active');
+
+    // --- LIBERAR WAKE LOCK (PERMITIR QUE LA PANTALLA SE APAGUE) ---
+    try {
+        if (wakeLock !== null) {
+            await wakeLock.release();
+            wakeLock = null;
+            console.log('💡 Wake Lock liberado');
+        }
+    } catch (err) {
+        console.error(`Error liberando Wake Lock: ${err.name}, ${err.message}`);
+    }
 }
 
 // --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE ---
@@ -435,7 +459,7 @@ async function sendDetectionEvent({
     yawnDetected, 
     totalBlinks, 
     totalYawns, 
-    immediate = false,
+    immediate = false, 
     realDuration = 0
 }) {
     if (!sessionId) return;
