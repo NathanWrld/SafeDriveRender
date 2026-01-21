@@ -51,6 +51,20 @@
     <div class="main normal-container">
         
         <section id="inicio" class="card">
+            <div id="medicalAlertCard" class="medical-card" style="display: none;">
+                <div class="med-icon">🩺</div>
+                <div class="med-content">
+                    <h3>Nos preocupamos por ti ❤️</h3>
+                    <p id="medText">Hemos notado fatiga persistente en tus últimos viajes. Te sugerimos consultar a un especialista.</p>
+                    <div class="med-feedback">
+                        <span>¿Has podido descansar o consultar al médico?</span>
+                        <div class="med-buttons">
+                            <button class="med-btn confirm" id="btnMedYes">Gracias, ya estoy en eso</button>
+                            <button class="med-btn deny" id="btnMedNo">Lo revisaré luego</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <h2>Tendencia Mensual de Conducción</h2>
             
             <div class="chart-container">
@@ -192,6 +206,24 @@
 </audio>
 <div id="warningPopup" class="warning-popup alert-orange">
     <div class="warning-content" id="popupTextContent"></div>
+</div>
+
+<!-- MODAL RECOMENDACIONES POST-VIAJE -->
+<div id="recommendationModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="recTitle">Resumen del Viaje</h2>
+            <button class="close-modal" id="closeRecModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="recIcon" class="rec-icon">✅</div>
+            <h3 id="recSubtitle">¡Buen trabajo!</h3>
+            <p id="recText">Mantuviste un excelente nivel de atención.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-button" id="btnCloseRec">Entendido</button>
+        </div>
+    </div>
 </div>
 
 <script type="module" src="script.js"></script>

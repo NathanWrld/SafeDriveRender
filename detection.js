@@ -21,7 +21,7 @@ let lastWarningTime = 0;
 let lastCaptureMinute = 0; 
 let wakeLock = null; // VARIABLE PARA EL BLOQUEO DE PANTALLA
 
-export async function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId }) {
+export async function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId, onRiskUpdate }) {
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
 
@@ -354,6 +354,11 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
                      warningPopup.classList.remove('active');
                 }
             }
+        }
+
+        // --- ENVIAR ESTADO AL SCRIPT PRINCIPAL ---
+        if (onRiskUpdate && typeof onRiskUpdate === 'function') {
+            onRiskUpdate(riskLevel);
         }
 
         // --- DEV DRAW ---

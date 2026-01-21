@@ -647,3 +647,89 @@ video, canvas.output_canvas {
     70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
     100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
+
+/* ==========================================================================
+   TARJETA MÉDICA (DASHBOARD)
+   ========================================================================== */
+.medical-card {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.10) 0%, var(--bg-card) 100%);
+    border: 1px solid #ef4444;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.med-icon {
+    font-size: 30px;
+    background: rgba(239, 68, 68, 0.15);
+    width: 50px; height: 50px;
+    display: flex; justify-content: center; align-items: center;
+    border-radius: 50%; flex-shrink: 0;
+}
+
+.med-content h3 { margin: 0 0 5px 0; color: #ef4444; font-size: 18px; }
+.med-content p { margin: 0 0 15px 0; color: var(--text-main); font-size: 15px; line-height: 1.4; }
+
+.med-feedback {
+    background: var(--bg-input);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.med-feedback span { display: block; margin-bottom: 10px; font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+.med-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.med-btn {
+    padding: 8px 16px; border-radius: 6px; border: none;
+    cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
+}
+.med-btn.confirm { background: #10b981; color: white; }
+.med-btn.confirm:hover { background: #059669; }
+.med-btn.deny { background: transparent; border: 1px solid var(--text-secondary); color: var(--text-secondary); }
+.med-btn.deny:hover { border-color: var(--text-main); color: var(--text-main); }
+
+@media (max-width: 768px) {
+    .medical-card { flex-direction: column; align-items: center; text-align: center; }
+    .med-buttons { justify-content: center; }
+}
+
+/* ==========================================================================
+   MODAL POST-VIAJE
+   ========================================================================== */
+.modal-overlay {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);
+    z-index: 3000; justify-content: center; align-items: center;
+}
+.modal-overlay.active { display: flex; }
+
+.modal-content {
+    background: var(--bg-card); width: 90%; max-width: 450px;
+    border-radius: 16px; border: 1px solid var(--border-color);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s ease-out; overflow: hidden;
+}
+
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 15px 20px; background: var(--bg-input);
+    border-bottom: 1px solid var(--border-color);
+}
+.modal-header h2 { margin: 0; font-size: 16px; color: var(--text-main); }
+.close-modal { background: none; border: none; color: var(--text-secondary); font-size: 28px; cursor: pointer; }
+
+.modal-body { padding: 30px 20px; text-align: center; color: var(--text-main); }
+.rec-icon { font-size: 50px; margin-bottom: 15px; }
+#recSubtitle { font-size: 20px; margin-bottom: 10px; color: var(--text-highlight); }
+#recText { font-size: 15px; color: var(--text-secondary); line-height: 1.5; }
+
+.modal-footer { padding: 15px 20px; text-align: center; display: flex; justify-content: center; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
