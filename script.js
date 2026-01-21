@@ -49,11 +49,14 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 // -------------------- LÓGICA DE SALUD Y RECOMENDACIONES (15 DÍAS) --------------------
+// --- LÓGICA DE SALUD Y RECOMENDACIONES (MODO DEBUG) ---
 async function checkMedicalHealth(userId) {
+    console.log("🔍 [DEBUG] Iniciando chequeo médico para usuario:", userId);
+
     const card = document.getElementById('medicalAlertCard');
     
     // 1. ¿Existe recomendación activa?
-    const { data: lastRec } = await supabase
+    const { data: lastRec, error: recError } = await supabase
         .from('recomendaciones_medicas')
         .select('*')
         .eq('id_usuario', userId)
@@ -61,46 +64,75 @@ async function checkMedicalHealth(userId) {
         .limit(1)
         .single();
 
+    if (recError && recError.code !== 'PGRST116') {
+        console.error("❌ [DEBUG] Error buscando recomendaciones:", recError.message);
+    }
+
     if (lastRec) {
+        console.log("📋 [DEBUG] Encontrada recomendación previa:", lastRec);
         const dias = (new Date() - new Date(lastRec.fecha_generacion)) / (1000 * 60 * 60 * 24);
         
-        // Si ya fue atendida hace menos de 30 días, no molestar
-        if (lastRec.estado === 'Atendida' && dias < 30) return;
-        
-        // Si fue omitida hace menos de 3 días, no molestar
-        if (lastRec.estado === 'Omitida' && dias < 3) return;
-        
-        // Si está pendiente, mostrarla
+        if (lastRec.estado === 'Atendida' && dias < 30) {
+            console.log("🛑 [DEBUG] Oculto: Ya fue atendida hace menos de 30 días.");
+            return;
+        }
+        if (lastRec.estado === 'Omitida' && dias < 3) {
+            console.log("🛑 [DEBUG] Oculto: Fue omitida hace poco.");
+            return;
+        }
         if (lastRec.estado === 'Pendiente') {
+            console.log("✅ [DEBUG] Mostrando recomendación pendiente.");
             showMedicalCard(lastRec.id_recomendacion, lastRec.descripcion);
             return;
         }
+    } else {
+        console.log("ℹ️ [DEBUG] No hay recomendaciones previas.");
     }
 
     // 2. Análisis de 15 días
     const fifteenDaysAgo = new Date();
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    console.log("📅 [DEBUG] Analizando sesiones desde:", fifteenDaysAgo.toISOString());
 
-    const { data: sessions } = await supabase
+    const { data: sessions, error: sessError } = await supabase
         .from('sesiones_conduccion')
-        .select('nivel_riesgo_final')
+        .select('nivel_riesgo_final, fecha_inicio')
         .eq('id_usuario', userId)
         .gte('fecha_inicio', fifteenDaysAgo.toISOString());
 
-    if (!sessions || sessions.length < 5) return; // Mínimo 5 viajes para analizar
+    if (sessError) {
+        console.error("❌ [DEBUG] Error trayendo sesiones:", sessError.message);
+        return;
+    }
+
+    console.log(`🚗 [DEBUG] Sesiones encontradas: ${sessions ? sessions.length : 0}`);
+    console.table(sessions); // Muestra los datos en tabla bonita en consola
+
+    if (!sessions || sessions.length < 5) {
+        console.warn("⚠️ [DEBUG] No hay suficientes sesiones (< 5) para generar alerta.");
+        return; 
+    }
 
     let badSessions = 0;
     sessions.forEach(s => {
-        if (s.nivel_riesgo_final === 'Alto riesgo' || s.nivel_riesgo_final === 'Moderado') badSessions++;
+        // Normalizamos a minúsculas por si acaso
+        const riesgo = s.nivel_riesgo_final; 
+        console.log(`🔎 [DEBUG] Revisando sesión: ${riesgo}`);
+        
+        if (riesgo === 'Alto riesgo' || riesgo === 'Moderado') {
+            badSessions++;
+        }
     });
 
     const fatiguePercentage = (badSessions / sessions.length) * 100;
+    console.log(`📊 [DEBUG] Resultado: ${badSessions} malas de ${sessions.length}. Porcentaje: ${fatiguePercentage}%`);
 
     // UMBRAL: 40%
     if (fatiguePercentage >= 40) {
+        console.log("🚨 [DEBUG] ¡UMBRAL SUPERADO! Generando alerta...");
         const desc = `Hola, hemos notado que en las últimas dos semanas, el ${fatiguePercentage.toFixed(0)}% de tus viajes presentaron indicadores de cansancio frecuente.`;
         
-        const { data: newRec } = await supabase
+        const { data: newRec, error: insertError } = await supabase
             .from('recomendaciones_medicas')
             .insert([{
                 id_usuario: userId,
@@ -111,7 +143,14 @@ async function checkMedicalHealth(userId) {
             }])
             .select().single();
 
-        if (newRec) showMedicalCard(newRec.id_recomendacion, desc);
+        if (insertError) {
+            console.error("❌ [DEBUG] Error creando recomendación:", insertError.message);
+        } else {
+            console.log("✅ [DEBUG] Recomendación creada con ID:", newRec.id_recomendacion);
+            showMedicalCard(newRec.id_recomendacion, desc);
+        }
+    } else {
+        console.log("✅ [DEBUG] El porcentaje es seguro (< 40%). No se genera alerta.");
     }
 }
 
