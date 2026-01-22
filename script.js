@@ -366,172 +366,168 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
 document.getElementById('btnDownloadPDF').addEventListener('click', generatePDFReport);
 
 async function generatePDFReport() {
-    const startDate = document.getElementById('reportStartDate').value;
-    const endDate = document.getElementById('reportEndDate').value;
+        const startDate = document.getElementById('reportStartDate').value;
+        const endDate = document.getElementById('reportEndDate').value;
 
-    if (!startDate || !endDate) {
-        showToast("Selecciona un rango de fechas para el informe", "error");
-        return;
-    }
+        if (!startDate || !endDate) {
+            showToast("Selecciona un rango de fechas para el informe", "error");
+            return;
+        }
 
-    showToast("Generando informe, por favor espera...", "info");
+        showToast("Generando informe, por favor espera...", "info");
 
-    // Obtenemos el usuario actual
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-    // 1. Obtener Datos: Sesiones
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59);
+        // --- CORRECCIÓN DE FECHAS (FIX ZONA HORARIA) ---
+        // Forzamos el inicio al primer segundo y el fin al último segundo del día local
+        const startISO = new Date(startDate + 'T00:00:00').toISOString();
+        const endISO = new Date(endDate + 'T23:59:59.999').toISOString();
 
-    const { data: sesiones, error: sessError } = await supabase
-        .from('sesiones_conduccion')
-        .select('*')
-        .eq('id_usuario', user.id)
-        .gte('fecha_inicio', new Date(startDate).toISOString())
-        .lte('fecha_inicio', endDateTime.toISOString())
-        .order('fecha_inicio', { ascending: true });
+        console.log("📅 Generando reporte desde:", startISO, "hasta:", endISO);
 
-    if (sessError || !sesiones || sesiones.length === 0) {
-        showToast("No hay datos en el rango seleccionado", "error");
-        return;
-    }
+        // 1. Obtener Datos: Sesiones
+        const { data: sesiones, error: sessError } = await supabase
+            .from('sesiones_conduccion')
+            .select('*')
+            .eq('id_usuario', user.id)
+            .gte('fecha_inicio', startISO) // Usamos las fechas corregidas
+            .lte('fecha_inicio', endISO)
+            .order('fecha_inicio', { ascending: true });
 
-    // 2. Obtener Alertas
-    const sessionIds = sesiones.map(s => s.id_sesion);
-    const { data: alertas } = await supabase
-        .from('Alertas')
-        .select('*')
-        .in('id_sesion', sessionIds)
-        .order('fecha_alerta', { ascending: true });
+        if (sessError || !sesiones || sesiones.length === 0) {
+            showToast("No hay datos en el rango seleccionado", "error");
+            console.log("Error o vacío:", sessError);
+            return;
+        }
 
-    // 3. Obtener Recomendaciones Médicas
-    const { data: recomendaciones } = await supabase
-        .from('recomendaciones_medicas')
-        .select('*')
-        .eq('id_usuario', user.id)
-        .gte('fecha_generacion', new Date(startDate).toISOString())
-        .lte('fecha_generacion', endDateTime.toISOString());
+        // 2. Obtener Alertas
+        const sessionIds = sesiones.map(s => s.id_sesion);
+        const { data: alertas } = await supabase
+            .from('Alertas')
+            .select('*')
+            .in('id_sesion', sessionIds)
+            .order('fecha_alerta', { ascending: true });
 
-    // --- CREACIÓN DEL PDF ---
-    const { jsPDF } = window.jspdf; // Accedemos a la librería global
-    const doc = new jsPDF();
+        // 3. Obtener Recomendaciones
+        const { data: recomendaciones } = await supabase
+            .from('recomendaciones_medicas')
+            .select('*')
+            .eq('id_usuario', user.id)
+            .gte('fecha_generacion', startISO)
+            .lte('fecha_generacion', endISO);
 
-    // Estilos
-    const colorPrimary = [15, 23, 42]; 
-    const colorAccent = [59, 130, 246];
+        // --- CÁLCULOS Y DIAGNÓSTICO ---
+        let totalMinutos = 0;
+        let sesionesAltoRiesgo = 0;
 
-    // HEADER
-    doc.setFillColor(...colorPrimary);
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.text("INFORME DE FATIGA", 105, 15, { align: "center" });
-    
-    doc.setFontSize(12);
-    doc.text(`Periodo: ${startDate} al ${endDate}`, 105, 28, { align: "center" });
-    doc.text(`Usuario: ${user.email}`, 105, 35, { align: "center" });
+        sesiones.forEach(s => {
+            if (s.duracion_min) totalMinutos += s.duracion_min;
+            
+            // CORRECCIÓN DE CONTEO: Limpiamos espacios y verificamos
+            const riesgo = s.nivel_riesgo_final ? s.nivel_riesgo_final.trim() : '';
+            console.log(`Evaluando sesión ${s.id_sesion}: Estado = "${riesgo}"`); // <--- MIRA ESTO EN CONSOLA
 
-    // RESUMEN ESTADÍSTICO
-    let totalMinutos = 0;
-    let sesionesAltoRiesgo = 0;
-    sesiones.forEach(s => {
-        if (s.duracion_min) totalMinutos += s.duracion_min;
-        if (s.nivel_riesgo_final === 'Alto riesgo' || s.nivel_riesgo_final === 'Alto') sesionesAltoRiesgo++;
-    });
+            if (riesgo === 'Alto riesgo' || riesgo === 'Alto') {
+                sesionesAltoRiesgo++;
+            }
+        });
 
-    doc.autoTable({
-        startY: 50,
-        head: [['Métrica', 'Valor']],
-        body: [
-            ['Total de Sesiones', sesiones.length],
-            ['Tiempo Conducido', `${totalMinutos} minutos`],
-            ['Sesiones Críticas', sesionesAltoRiesgo],
-            ['Total de Alertas', alertas ? alertas.length : 0]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: colorAccent }
-    });
+        // --- CREACIÓN DEL PDF ---
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const colorPrimary = [15, 23, 42]; 
+        const colorAccent = [59, 130, 246];
 
-    // TEXTO METODOLOGÍA
-    let finalY = doc.lastAutoTable.finalY + 10;
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text("Metodología: Este informe se basa en el análisis biométrico de EAR (ojos) y MAR (boca) mediante Visión Artificial.", 14, finalY);
+        // Header
+        doc.setFillColor(...colorPrimary);
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.text("INFORME DE FATIGA", 105, 15, { align: "center" });
+        
+        doc.setFontSize(10);
+        doc.text(`Generado: ${new Date().toLocaleString()}`, 105, 25, { align: "center" });
+        doc.text(`Rango: ${startDate} al ${endDate}`, 105, 32, { align: "center" });
 
-    // TABLA DE SESIONES
-    finalY += 10;
-    doc.setFontSize(14);
-    doc.setTextColor(...colorAccent);
-    doc.text("Detalle de Sesiones", 14, finalY);
+        // Resumen
+        doc.setTextColor(0, 0, 0);
+        doc.autoTable({
+            startY: 50,
+            head: [['Métrica Clave', 'Valor']],
+            body: [
+                ['Total de Sesiones Analizadas', sesiones.length],
+                ['Tiempo Total al Volante', `${totalMinutos} minutos`],
+                ['Sesiones Críticas (Alto Riesgo)', sesionesAltoRiesgo], // <--- AHORA DEBERÍA SALIR BIEN
+                ['Total de Alertas Registradas', alertas ? alertas.length : 0]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: colorAccent, halign: 'center' },
+            columnStyles: { 1: { fontStyle: 'bold', halign: 'center' } }
+        });
 
-    const bodySesiones = sesiones.map(s => [
-        new Date(s.fecha_inicio).toLocaleDateString() + ' ' + new Date(s.fecha_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-        s.duracion_min ? s.duracion_min + ' min' : '-',
-        s.nivel_riesgo_final || 'Normal'
-    ]);
+        // Metodología
+        let finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        const metodoText = "NOTA TÉCNICA: 'Sesión Crítica' se define como un trayecto donde el sistema detectó microsueños (EAR < 0.20) o fatiga severa persistente que obligó a detener la medición en estado de Alto Riesgo.";
+        doc.text(metodoText, 14, finalY, { maxWidth: 180, align: 'justify' });
 
-    doc.autoTable({
-        startY: finalY + 5,
-        head: [['Fecha / Hora', 'Duración', 'Estado Final']],
-        body: bodySesiones,
-        theme: 'striped',
-        headStyles: { fillColor: [100, 116, 139] },
-        didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index === 2) {
-                if (data.cell.raw === 'Alto riesgo' || data.cell.raw === 'Alto') {
-                    data.cell.styles.textColor = [220, 38, 38];
-                    data.cell.styles.fontStyle = 'bold';
+        // Tabla Detallada
+        finalY += 15;
+        doc.setFontSize(14);
+        doc.setTextColor(...colorAccent);
+        doc.text("Desglose de Sesiones", 14, finalY);
+
+        const bodySesiones = sesiones.map(s => [
+            new Date(s.fecha_inicio).toLocaleDateString() + ' ' + new Date(s.fecha_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            s.duracion_min ? s.duracion_min + ' min' : 'Running',
+            s.nivel_riesgo_final || 'Incompleta'
+        ]);
+
+        doc.autoTable({
+            startY: finalY + 5,
+            head: [['Fecha / Hora', 'Duración', 'Estado Final']],
+            body: bodySesiones,
+            theme: 'striped',
+            headStyles: { fillColor: [71, 85, 105] },
+            didParseCell: function(data) {
+                if (data.section === 'body' && data.column.index === 2) {
+                    const val = data.cell.raw;
+                    if (val === 'Alto riesgo' || val === 'Alto') {
+                        data.cell.styles.textColor = [220, 38, 38]; // Rojo
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (val === 'Moderado') {
+                        data.cell.styles.textColor = [234, 179, 8]; // Amarillo oscuro
+                    }
                 }
             }
+        });
+
+        // Alertas (si hay)
+        if (alertas && alertas.length > 0) {
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.setTextColor(...colorAccent);
+            doc.text("Bitácora de Eventos (Alertas)", 14, 20);
+            
+            const bodyAlertas = alertas.map(a => [
+                new Date(a.fecha_alerta).toLocaleTimeString(),
+                a.causa_detonante || 'General',
+                a.nivel_riesgo,
+                a.valor_medido ? a.valor_medido.toString() : '-'
+            ]);
+
+            doc.autoTable({
+                startY: 25,
+                head: [['Hora', 'Evento', 'Gravedad', 'Valor']],
+                body: bodyAlertas,
+                theme: 'grid',
+                headStyles: { fillColor: [239, 68, 68] }
+            });
         }
-    });
 
-    // BITÁCORA DE ALERTAS (Si hay)
-    if (alertas && alertas.length > 0) {
-        doc.addPage();
-        doc.setFontSize(14);
-        doc.setTextColor(...colorAccent);
-        doc.text("Bitácora de Eventos Críticos", 14, 20);
-
-        const bodyAlertas = alertas.map(a => [
-            new Date(a.fecha_alerta).toLocaleString(),
-            a.causa_detonante,
-            a.nivel_riesgo
-        ]);
-
-        doc.autoTable({
-            startY: 25,
-            head: [['Hora', 'Evento', 'Gravedad']],
-            body: bodyAlertas,
-            theme: 'striped',
-            headStyles: { fillColor: [239, 68, 68] }
-        });
+        doc.save(`Informe_VisioGuard_${startDate}_${endDate}.pdf`);
+        showToast("Informe PDF descargado con éxito", "success");
     }
-
-    // RECOMENDACIONES (Si hay)
-    if (recomendaciones && recomendaciones.length > 0) {
-        doc.addPage();
-        doc.setFontSize(14);
-        doc.setTextColor(...colorAccent);
-        doc.text("Historial de Salud", 14, 20);
-
-        const bodyRecs = recomendaciones.map(r => [
-            new Date(r.fecha_generacion).toLocaleDateString(),
-            r.estado,
-            r.descripcion
-        ]);
-
-        doc.autoTable({
-            startY: 25,
-            head: [['Fecha', 'Estado', 'Observación']],
-            body: bodyRecs,
-            styles: { fontSize: 8 }
-        });
-    }
-
-    // DESCARGAR
-    doc.save(`Informe_VisioGuard_${startDate}.pdf`);
-    showToast("Informe PDF descargado", "success");
-}
