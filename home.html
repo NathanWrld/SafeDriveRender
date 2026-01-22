@@ -94,6 +94,7 @@
 
         <section id="deteccion" class="card" style="display:none;">
             <h2>Detección en Tiempo Real</h2>
+            
             <div class="night-mode-container">
                 <label class="switch">
                     <input type="checkbox" id="nightModeToggle">
@@ -101,12 +102,19 @@
                 </label>
                 <span class="night-label">🌙 Modo Nocturno (Potenciar Cámara)</span>
             </div>
+
             <div class="cam-container" id="camFeed">
+                <video class="input_video" autoplay playsinline style="display:none;"></video>
+                <canvas class="output_canvas" style="display:none;"></canvas>
+                
                 <div id="estado">
                     <p>Presiona "Iniciar Detección" para comenzar.</p>
                 </div>
-                <button id="startDetection" class="primary-button">Iniciar Detección</button>
-                <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
+                
+                <div class="btn-detection-container">
+                    <button id="startDetection" class="primary-button">Iniciar Detección</button>
+                    <button id="stopDetection" class="primary-button" style="display:none;">Detener Detección</button>
+                </div>
             </div>
         </section>
 
