@@ -733,3 +733,47 @@ video, canvas.output_canvas {
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ==========================================================================
+   TOAST NOTIFICATIONS (Reemplazo de Alert)
+   ========================================================================== */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 4000; /* Encima de todo */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background: var(--bg-card);
+    color: var(--text-main);
+    padding: 12px 20px;
+    border-radius: 8px;
+    border-left: 5px solid; /* Color dinámico */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    min-width: 250px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; /* Entra y se va solo */
+}
+
+/* Tipos de Toast */
+.toast.success { border-left-color: #10b981; }
+.toast.error { border-left-color: #ef4444; }
+.toast.info { border-left-color: #3b82f6; }
+
+.toast-icon { font-size: 18px; }
+
+@keyframes toastIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastOut {
+    to { transform: translateX(100%); opacity: 0; }
+}

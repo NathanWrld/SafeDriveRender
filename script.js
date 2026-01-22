@@ -13,6 +13,28 @@ const canvasElement = document.querySelector('.output_canvas');
 const estado = document.getElementById('estado');
 const cameraRef = { current: null };
 
+// -------------------- SISTEMA DE NOTIFICACIONES (TOAST) --------------------
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    
+    // Crear elemento
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+
+    toast.innerHTML = `<span class="toast-icon">${icon}</span> <span>${message}</span>`;
+    
+    container.appendChild(toast);
+
+    // Eliminar del DOM después de la animación (3s)
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
 // -------------------- SESIÓN USUARIO --------------------
 async function checkUserSession() {
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -64,13 +86,9 @@ async function checkMedicalHealth(userId) {
     if (lastRec) {
         const dias = (new Date() - new Date(lastRec.fecha_generacion)) / (1000 * 60 * 60 * 24);
         
-        // Si ya fue atendida hace menos de 30 días, no molestar
-        if (lastRec.estado === 'Atendida' && dias < 30) return;
+        if (lastRec.estado === 'Atendida' && dias < 30) return; // Periodo de gracia
+        if (lastRec.estado === 'Omitida' && dias < 3) return; // No insistir pronto
         
-        // Si fue omitida hace menos de 3 días, no molestar
-        if (lastRec.estado === 'Omitida' && dias < 3) return;
-        
-        // Si está pendiente, mostrarla
         if (lastRec.estado === 'Pendiente') {
             showMedicalCard(lastRec.id_recomendacion, lastRec.descripcion);
             return;
@@ -87,14 +105,21 @@ async function checkMedicalHealth(userId) {
         .eq('id_usuario', userId)
         .gte('fecha_inicio', fifteenDaysAgo.toISOString());
 
-    if (!sessions || sessions.length < 5) return; // Mínimo 5 viajes para analizar
+    if (!sessions || sessions.length < 5) return; // Mínimo 5 viajes
 
+    // Filtrar nulos para evitar errores matemáticos
+    const validSessions = sessions.filter(s => s.nivel_riesgo_final !== null);
+    
     let badSessions = 0;
-    sessions.forEach(s => {
-        if (s.nivel_riesgo_final === 'Alto riesgo' || s.nivel_riesgo_final === 'Moderado') badSessions++;
+    validSessions.forEach(s => {
+        // Normalización por si acaso
+        const riesgo = s.nivel_riesgo_final;
+        if (riesgo === 'Alto riesgo' || riesgo === 'Alto' || riesgo === 'Moderado') {
+            badSessions++;
+        }
     });
 
-    const fatiguePercentage = (badSessions / sessions.length) * 100;
+    const fatiguePercentage = (badSessions / validSessions.length) * 100;
 
     // UMBRAL: 40%
     if (fatiguePercentage >= 40) {
@@ -125,12 +150,13 @@ function showMedicalCard(recId, description) {
     document.getElementById('btnMedYes').onclick = async () => {
         await supabase.from('recomendaciones_medicas').update({ estado: 'Atendida' }).eq('id_recomendacion', recId);
         card.style.display = 'none';
-        alert("¡Excelente! Nos alegra saber que te cuidas."); 
+        showToast("¡Excelente! Nos alegra saber que te cuidas.", "success"); // <--- TOAST
     };
 
     document.getElementById('btnMedNo').onclick = async () => {
         await supabase.from('recomendaciones_medicas').update({ estado: 'Omitida' }).eq('id_recomendacion', recId);
         card.style.display = 'none';
+        showToast("Entendido. Te lo recordaremos más adelante.", "info"); // <--- TOAST
     };
 }
 
@@ -147,13 +173,15 @@ async function startUserSession() {
     if (!error) {
         sessionId = data.id_sesion;
         console.log('Sesión iniciada:', sessionId);
+        showToast("Sesión iniciada correctamente", "success");
+    } else {
+        showToast("Error al conectar con la base de datos", "error");
     }
 }
 
 async function endUserSession() {
     if (!sessionId) return;
 
-    // Calcular riesgo final basado en lo peor que pasó en el viaje
     let riesgoFinal = 'Normal';
     if (maxSessionRisk === 3) riesgoFinal = 'Alto riesgo';
     else if (maxSessionRisk === 2) riesgoFinal = 'Moderado';
@@ -163,12 +191,11 @@ async function endUserSession() {
         .from('sesiones_conduccion')
         .update({ 
             fecha_fin: new Date().toISOString(),
-            nivel_riesgo_final: riesgoFinal // <--- Guardamos para el análisis médico
+            nivel_riesgo_final: riesgoFinal
         })
         .eq('id_sesion', sessionId);
 
     sessionId = null;
-    // No reseteamos maxSessionRisk aquí, lo necesitamos para el modal, se resetea al iniciar
 }
 
 // -------------------- BOTONES DETECCIÓN --------------------
@@ -176,17 +203,15 @@ document.getElementById('startDetection').addEventListener('click', async () => 
     const rol = await getUserRole();
     if (rol === 'Dev') canvasElement.style.display = 'block';
     
-    // RESETEAR RIESGO AL INICIAR
     maxSessionRisk = 0;
 
     await startUserSession(); 
-    if (!sessionId) { alert("Error de conexión al iniciar sesión."); return; }
+    if (!sessionId) return; // El toast de error ya salió en startUserSession
 
     videoElement.style.display = 'block';
     
     startDetection({ 
         rol, videoElement, canvasElement, estado, cameraRef, sessionId,
-        // CALLBACK: Escuchar cambios de riesgo en vivo
         onRiskUpdate: (level) => {
             let val = 0;
             if (level === 'Leve') val = 1;
@@ -211,7 +236,6 @@ document.getElementById('stopDetection').addEventListener('click', async () => {
     document.getElementById('startDetection').style.display = 'inline-block';
     document.getElementById('stopDetection').style.display = 'none';
 
-    // MOSTRAR FEEDBACK AMABLE
     showPostSessionModal();
 });
 
@@ -224,19 +248,19 @@ function showPostSessionModal() {
     if (maxSessionRisk === 3) {
         icon.textContent = "🛑";
         title.textContent = "Cuidado";
-        text.textContent = "¡Cuidado! Hubo momentos donde el sueño casi te gana y tu seguridad es lo más importante. Es mejor llegar tarde que no llegar. Tómate un descanso, lo necesitas.";
+        text.textContent = "¡Cuidado! Hubo momentos donde el sueño casi te gana. Por tu seguridad, es mejor llegar tarde que no llegar. Tómate un descanso.";
     } else if (maxSessionRisk === 2) {
         icon.textContent = "⚠️";
         title.textContent = "Atención";
-        text.textContent = "Oye, notamos que te dio algo de sueño en el camino. Los bostezos nos delatan. Quizás sea momento de tomarte una pausa o un café. ¡No te exijas de más!";
+        text.textContent = "Oye, notamos que te dio algo de sueño. Los bostezos nos delatan. Quizás sea momento de una pausa o un café.";
     } else if (maxSessionRisk === 1) {
         icon.textContent = "💤";
         title.textContent = "Un poco de cansancio";
-        text.textContent = "Parece que hoy el viaje estuvo un poco pesado. Notamos cansancio en tus ojos. ¿Qué tal si hoy intentas irte a la cama un poquito antes?";
+        text.textContent = "Parece que hoy el viaje estuvo un poco pesado. Notamos cansancio en tus ojos. Intenta dormir mejor hoy.";
     } else {
         icon.textContent = "🚗";
         title.textContent = "¡Excelente viaje!";
-        text.textContent = "Todo marcha sobre ruedas. Has conducido con muy buena atención. Sigue descansando bien para mantener ese ritmo.";
+        text.textContent = "Todo marcha sobre ruedas. Has conducido con muy buena atención.";
     }
 
     modal.classList.add('active');
@@ -246,7 +270,20 @@ function showPostSessionModal() {
 document.getElementById('closeRecModal').onclick = () => document.getElementById('recommendationModal').classList.remove('active');
 document.getElementById('btnCloseRec').onclick = () => document.getElementById('recommendationModal').classList.remove('active');
 
-// -------------------- PERFIL DE USUARIO (Código existente minimizado) --------------------
-async function loadUserProfile() { /* ... tu código de perfil ... */ }
+// -------------------- PERFIL DE USUARIO --------------------
+// (Tu código de perfil se mantiene igual, solo asegúrate de cambiar los alert por showToast si hay alguno)
+async function loadUserProfile() {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) return;
+    const { data } = await supabase.from('Usuarios').select('nombre').eq('id_usuario', authData.user.id).single();
+    if (data) document.getElementById('userName').value = data.nombre;
+    document.getElementById('userEmail').value = authData.user.email;
+}
 document.querySelector('.menu-btn[data-target="usuarios"]').addEventListener('click', loadUserProfile);
-document.getElementById('editProfileForm').addEventListener('submit', async (e) => { /* ... tu código de editar ... */ });
+
+document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // ... (tu lógica de actualización) ...
+    // Al final, en lugar de messageEl.textContent, puedes usar:
+    // showToast('Perfil actualizado correctamente', 'success');
+});
