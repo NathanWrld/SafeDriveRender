@@ -365,7 +365,18 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
 
 document.getElementById('btnDownloadPDF').addEventListener('click', generatePDFReport);
 
-async function generatePDFReport() {
+// --- Función auxiliar para cargar la imagen del logo ---
+    function loadImage(url) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = url;
+            img.crossOrigin = "Anonymous"; 
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null); // Si falla, sigue sin logo
+        });
+    }
+
+    async function generatePDFReport() {
         const startDate = document.getElementById('reportStartDate').value;
         const endDate = document.getElementById('reportEndDate').value;
 
@@ -376,14 +387,29 @@ async function generatePDFReport() {
 
         showToast("Generando informe oficial...", "info");
 
+        // 1. Obtener Usuario (Auth) y Perfil (Nombre)
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // --- 1. Rango de Fechas Exacto (Todo el día final) ---
+        // Consultamos el nombre en la tabla Usuarios
+        const { data: perfil } = await supabase
+            .from('Usuarios')
+            .select('nombre')
+            .eq('id_usuario', user.id)
+            .single();
+        
+        const nombreUsuario = perfil ? perfil.nombre : 'Conductor';
+        const correoUsuario = user.email;
+
+        // --- Cargar Logo (Esperamos a que cargue) ---
+        // Usamos el logo blanco porque el fondo del header será oscuro
+        const logoImg = await loadImage('img/white-logo.png');
+
+        // --- 2. Rango de Fechas Exacto ---
         const startISO = new Date(startDate + 'T00:00:00').toISOString();
         const endISO = new Date(endDate + 'T23:59:59.999').toISOString();
 
-        // --- 2. Obtener Sesiones ---
+        // --- 3. Obtener Datos (Sesiones) ---
         const { data: sesiones, error: sessError } = await supabase
             .from('sesiones_conduccion')
             .select('*')
@@ -397,14 +423,16 @@ async function generatePDFReport() {
             return;
         }
 
-        // --- 3. Obtener Alertas y Recomendaciones ---
         const sessionIds = sesiones.map(s => s.id_sesion);
+        
+        // Alertas
         const { data: alertas } = await supabase
             .from('Alertas')
             .select('*')
             .in('id_sesion', sessionIds)
             .order('fecha_alerta', { ascending: true });
 
+        // Recomendaciones
         const { data: recomendaciones } = await supabase
             .from('recomendaciones_medicas')
             .select('*')
@@ -418,7 +446,6 @@ async function generatePDFReport() {
 
         sesiones.forEach(s => {
             if (s.duracion_min) totalMinutos += s.duracion_min;
-            // Contamos como crítica si el estado final contiene "Alto"
             const estado = s.nivel_riesgo_final || '';
             if (estado.includes('Alto')) sesionesAltoRiesgo++;
         });
@@ -431,27 +458,45 @@ async function generatePDFReport() {
         const darkBlue = [15, 23, 42]; 
         const brightBlue = [59, 130, 246];
 
-        // --- HEADER ---
+        // --- HEADER CON LOGO Y DATOS ---
         doc.setFillColor(...darkBlue);
-        doc.rect(0, 0, 210, 40, 'F');
+        doc.rect(0, 0, 210, 50, 'F'); // Aumenté un poco el alto a 50
         
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.text("INFORME DE ESTADO DEL CONDUCTOR", 105, 15, { align: "center" });
-        
-        doc.setFontSize(11);
-        doc.text(`Generado por VisioGuard | ${new Date().toLocaleDateString()}`, 105, 25, { align: "center" });
-        doc.text(`Rango Analizado: ${startDate} al ${endDate}`, 105, 32, { align: "center" });
+        // 1. Logo (Si cargó)
+        if (logoImg) {
+            // x=14, y=10, width=25, height=auto (según ratio)
+            const imgRatio = logoImg.height / logoImg.width;
+            doc.addImage(logoImg, 'PNG', 14, 10, 30, 30 * imgRatio);
+        }
 
-        // --- TABLA RESUMEN (Estilo Grilla) ---
+        // 2. Título del Reporte (Centrado un poco a la derecha del logo)
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.text("INFORME DE ESTADO", 100, 18);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(200, 200, 200);
+        doc.text(`Generado: ${new Date().toLocaleDateString()}`, 100, 24);
+
+        // 3. Datos del Usuario (Alineados a la derecha del header)
+        doc.setFontSize(11);
+        doc.setTextColor(255, 255, 255);
+        doc.text(nombreUsuario.toUpperCase(), 190, 38, { align: 'right' }); // Nombre
+        
+        doc.setFontSize(9);
+        doc.setTextColor(156, 163, 175); // Gris claro
+        doc.text(correoUsuario, 190, 43, { align: 'right' }); // Correo
+
+        // --- TABLA RESUMEN ---
         doc.setTextColor(0, 0, 0);
         doc.autoTable({
-            startY: 50,
+            startY: 60,
             head: [['Métrica', 'Resultado']],
             body: [
+                ['Periodo Analizado', `${startDate} al ${endDate}`],
                 ['Total Sesiones Realizadas', sesiones.length],
                 ['Tiempo Total Monitoreado', `${totalMinutos} minutos`],
-                ['Sesiones Críticas (Alto Riesgo)', sesionesAltoRiesgo], // Cuenta viajes terminados en rojo
+                ['Sesiones Críticas (Alto Riesgo)', sesionesAltoRiesgo], 
                 ['Total Eventos de Alerta', alertas ? alertas.length : 0]
             ],
             theme: 'grid',
@@ -459,7 +504,7 @@ async function generatePDFReport() {
             columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'center' } }
         });
 
-        // --- BITÁCORA DE ALERTAS (Lo importante) ---
+        // --- BITÁCORA DE ALERTAS ---
         let finalY = doc.lastAutoTable.finalY + 15;
         doc.setFontSize(14);
         doc.setTextColor(...brightBlue);
@@ -467,14 +512,13 @@ async function generatePDFReport() {
 
         if (alertas && alertas.length > 0) {
             const bodyAlertas = alertas.map(a => {
-                // Lógica de Unidades para la columna Valor
                 let valorFormateado = '-';
                 if (a.valor_medido !== null) {
                     const val = parseFloat(a.valor_medido).toFixed(1);
-                    if (a.causa_detonante.includes('Microsueño')) valorFormateado = `${val} seg`; // Tiempo ojos cerrados
-                    else if (a.causa_detonante.includes('Fatiga')) valorFormateado = `${val} parp/min`; // Frecuencia
-                    else if (a.causa_detonante.includes('Bostezos')) valorFormateado = `${val} detectados`; // Cantidad
-                    else if (a.causa_detonante.includes('Somnolencia')) valorFormateado = `${val} eventos`; // Cantidad parpadeos lentos
+                    if (a.causa_detonante.includes('Microsueño')) valorFormateado = `${val} seg`;
+                    else if (a.causa_detonante.includes('Fatiga')) valorFormateado = `${val} parp/min`;
+                    else if (a.causa_detonante.includes('Bostezos')) valorFormateado = `${val} detectados`;
+                    else if (a.causa_detonante.includes('Somnolencia')) valorFormateado = `${val} eventos`;
                     else valorFormateado = val; 
                 }
 
@@ -482,7 +526,7 @@ async function generatePDFReport() {
                     new Date(a.fecha_alerta).toLocaleDateString() + ' ' + new Date(a.fecha_alerta).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                     a.causa_detonante || 'General',
                     a.nivel_riesgo,
-                    valorFormateado // <--- AQUI ESTÁ TU NUEVA COLUMNA CON UNIDADES
+                    valorFormateado
                 ];
             });
 
@@ -491,9 +535,8 @@ async function generatePDFReport() {
                 head: [['Fecha / Hora', 'Evento', 'Gravedad', 'Medición']],
                 body: bodyAlertas,
                 theme: 'striped',
-                headStyles: { fillColor: [220, 38, 38] }, // Rojo Alerta
+                headStyles: { fillColor: [220, 38, 38] },
                 didParseCell: function(data) {
-                    // Colorear texto según gravedad
                     if (data.section === 'body' && data.column.index === 2) {
                         if (data.cell.raw === 'Alto riesgo') data.cell.styles.textColor = [220, 38, 38];
                         else if (data.cell.raw === 'Moderado') data.cell.styles.textColor = [217, 119, 6];
@@ -507,10 +550,7 @@ async function generatePDFReport() {
         }
 
         // --- DETALLE DE SESIONES ---
-        // Si la tabla de alertas es muy larga, lastAutoTable se actualiza
         finalY = doc.lastAutoTable.finalY + 15;
-        
-        // Verificar si necesitamos nueva página
         if (finalY > 250) { doc.addPage(); finalY = 20; }
 
         doc.setFontSize(14);
@@ -528,7 +568,7 @@ async function generatePDFReport() {
             head: [['Inicio', 'Duración', 'Estado Final']],
             body: bodySesiones,
             theme: 'striped',
-            headStyles: { fillColor: [71, 85, 105] }, // Gris Oscuro
+            headStyles: { fillColor: [71, 85, 105] },
             didParseCell: function(data) {
                 if (data.section === 'body' && data.column.index === 2) {
                     if (data.cell.raw && data.cell.raw.includes('Alto')) {
@@ -539,15 +579,39 @@ async function generatePDFReport() {
             }
         });
 
+        // --- RECOMENDACIONES (Si existen) ---
+        if (recomendaciones && recomendaciones.length > 0) {
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.setTextColor(...brightBlue);
+            doc.text("Historial de Recomendaciones Médicas", 14, 20);
+
+            const bodyRecs = recomendaciones.map(r => [
+                new Date(r.fecha_generacion).toLocaleDateString(),
+                r.motivo,
+                r.estado,
+                r.descripcion
+            ]);
+
+            doc.autoTable({
+                startY: 25,
+                head: [['Fecha', 'Motivo', 'Estado', 'Descripción']],
+                body: bodyRecs,
+                theme: 'grid',
+                headStyles: { fillColor: [234, 179, 8], textColor: [0,0,0] }, // Amarillo
+                columnStyles: { 3: { cellWidth: 80 } }
+            });
+        }
+
         // --- FOOTER ---
         const pageCount = doc.internal.getNumberOfPages();
         for(let i = 1; i <= pageCount; i++) {
             doc.setPage(i);
             doc.setFontSize(8);
             doc.setTextColor(150);
-            doc.text(`Página ${i} de ${pageCount} - Reporte VisioGuard`, 105, 290, { align: "center" });
+            doc.text(`Página ${i} de ${pageCount} - Reporte VisioGuard - ${nombreUsuario}`, 105, 290, { align: "center" });
         }
 
-        doc.save(`VisioGuard_${startDate}_${endDate}.pdf`);
+        doc.save(`VisioGuard_${nombreUsuario.replace(/\s+/g, '_')}_${startDate}.pdf`);
         showToast("Informe descargado correctamente", "success");
     }
