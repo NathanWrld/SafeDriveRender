@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-import { startDetection, stopDetection } from './detection.js';
+import { startDetection, stopDetection, toggleNightMode } from './detection.js';
 
 const supabaseUrl = 'https://roogjmgxghbuiogpcswy.supabase.co'
 const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
@@ -630,3 +630,18 @@ document.getElementById('btnDownloadPDF').addEventListener('click', generatePDFR
         doc.save(`VisioGuard_${nombreUsuario.replace(/\s+/g, '_')}_${startDate}.pdf`);
         showToast("Informe descargado correctamente", "success");
     }
+
+// -------------------- MODO NOCTURNO (POTENCIAR CÁMARA) --------------------
+// --- MODO NOCTURNO ---
+document.getElementById('nightModeToggle').addEventListener('change', (e) => {
+    const isEnabled = e.target.checked;
+
+    // Solo activamos la lógica interna de filtros
+    toggleNightMode(isEnabled);
+
+    if (isEnabled) {
+        showToast("Filtro de Cámara Activado", "info");
+    } else {
+        showToast("Filtro de Cámara Desactivado", "info");
+    }
+});

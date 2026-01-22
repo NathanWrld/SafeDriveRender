@@ -94,11 +94,14 @@
 
         <section id="deteccion" class="card" style="display:none;">
             <h2>Detección en Tiempo Real</h2>
-            <div class="cam-container" id="camFeed">
-                <video id="camaraNormal" class="input_video" autoplay playsinline style="display:none;"></video>
-                <canvas id="camaraAvanzada" class="output_canvas"></canvas>
+            <div class="night-mode-container">
+                <label class="switch">
+                    <input type="checkbox" id="nightModeToggle">
+                    <span class="slider round"></span>
+                </label>
+                <span class="night-label">🌙 Modo Nocturno (Potenciar Cámara)</span>
             </div>
-            <div class="btn-detection-container">
+            <div class="cam-container" id="camFeed">
                 <div id="estado">
                     <p>Presiona "Iniciar Detección" para comenzar.</p>
                 </div>
