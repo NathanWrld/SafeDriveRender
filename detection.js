@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN: Fatiga generalizada, unidades corregidas y WAKE LOCK
+// CORRECCIÓN: Reseteo de estado al reiniciar la cámara
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -14,14 +14,74 @@ const alarmAudio = document.getElementById('alarmSound');
 const notifyAudio = document.getElementById('notifySound');
 const warningPopup = document.getElementById('warningPopup');
 
-// --- VARIABLES DE CONTROL ---
+// --- VARIABLES DE CONTROL (Estado Global del Módulo) ---
 let moderateAlertCooldown = false;
 let moderateWarningCount = 0; 
 let lastWarningTime = 0; 
 let lastCaptureMinute = 0; 
-let wakeLock = null; // VARIABLE PARA EL BLOQUEO DE PANTALLA
+let wakeLock = null; 
+
+// Variables de Lógica
+let blinkTimestamps = [];
+let slowBlinksBuffer = []; 
+let yawnsBuffer = [];       
+let yawnCountTotal = 0; 
+
+let earHistory = [];
+let mouthHistory = [];
+let baselineSamples = [];
+let baselineEMA = null;
+let initialCalibrationDone = false;
+
+let eyeState = 'open';
+let mouthState = 'closed';
+let closedFrameCounter = 0;
+let reopenGraceCounter = 0;
+let prevSmoothedEAR = 0;
+
+let dynamicEARBaseline = null;
+let dynamicMARBaseline = 0.65;
+
+let lastModerateTimestamp = 0;
+let microsleepTriggered = false; 
+let yawnFrameCounter = 0;
+
+// --- FUNCIÓN DE RESETEO (NUEVO) ---
+function resetDetectionState() {
+    console.log("🔄 Reseteando variables de detección...");
+    blinkTimestamps = [];
+    slowBlinksBuffer = []; 
+    yawnsBuffer = [];       
+    yawnCountTotal = 0; 
+
+    earHistory = [];
+    mouthHistory = [];
+    baselineSamples = [];
+    baselineEMA = null;
+    initialCalibrationDone = false; // Forzar recalibración
+
+    eyeState = 'open';
+    mouthState = 'closed';
+    closedFrameCounter = 0;
+    reopenGraceCounter = 0;
+    prevSmoothedEAR = 0;
+
+    dynamicEARBaseline = null;
+    dynamicMARBaseline = 0.65;
+
+    lastModerateTimestamp = 0;
+    microsleepTriggered = false; 
+    yawnFrameCounter = 0;
+    
+    moderateWarningCount = 0;
+    lastCaptureMinute = 0;
+    moderateAlertCooldown = false;
+}
 
 export async function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId, onRiskUpdate }) {
+    // 1. LIMPIEZA INICIAL: Borramos todo el "sucio" de la sesión anterior
+    resetDetectionState();
+
     const canvasCtx = canvasElement.getContext('2d');
     const isDev = rol === 'Dev';
 
@@ -41,7 +101,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     }
 
     // ===============================
-    // PARÁMETROS
+    // PARÁMETROS CONSTANTES
     // ===============================
     const SMOOTHING_WINDOW = 5;
     const BASELINE_FRAMES_INIT = 60;
@@ -56,33 +116,6 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     const FPS = 30;
     const MIN_YAWN_DURATION = 0.8; 
     const EYE_REOPEN_GRACE_FRAMES = 3;
-
-    // ===============================
-    // ESTADO
-    // ===============================
-    let blinkTimestamps = [];
-    let slowBlinksBuffer = []; 
-    let yawnsBuffer = [];       
-    let yawnCountTotal = 0; 
-
-    let earHistory = [];
-    let mouthHistory = [];
-    let baselineSamples = [];
-    let baselineEMA = null;
-    let initialCalibrationDone = false;
-
-    let eyeState = 'open';
-    let mouthState = 'closed';
-    let closedFrameCounter = 0;
-    let reopenGraceCounter = 0;
-    let prevSmoothedEAR = 0;
-
-    let dynamicEARBaseline = null;
-    let dynamicMARBaseline = 0.65;
-
-    let lastModerateTimestamp = 0;
-    let microsleepTriggered = false; 
-    let yawnFrameCounter = 0;
 
     // ===============================
     // UTILIDADES
@@ -157,6 +190,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
         // --- CALIBRACIÓN ---
         if (!initialCalibrationDone) {
+            estado.innerHTML = `<p>🔄 Calibrando... (${baselineSamples.length}/${BASELINE_FRAMES_INIT})</p>`; // Feedback visual
             if (earRel > 0) baselineSamples.push(earRel);
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
                 baselineEMA = median(baselineSamples) || 0.01;
