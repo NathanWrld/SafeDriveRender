@@ -283,7 +283,79 @@ document.querySelector('.menu-btn[data-target="usuarios"]').addEventListener('cl
 
 document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    // ... (tu lógica de actualización) ...
-    // Al final, en lugar de messageEl.textContent, puedes usar:
-    // showToast('Perfil actualizado correctamente', 'success');
+    
+    // Limpiamos mensajes antiguos del formulario por si acaso
+    const messageEl = document.getElementById('profileMessage');
+    if(messageEl) messageEl.textContent = ''; 
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const newName = document.getElementById('userName').value.trim();
+    const newEmail = document.getElementById('userEmail').value.trim();
+    const newPassword = document.getElementById('newPassword').value;
+    const repeatPassword = document.getElementById('repeatPassword').value;
+    const currentPassword = document.getElementById('currentPassword').value;
+
+    try {
+        if (!currentPassword) throw new Error('Debes ingresar tu contraseña actual');
+
+        // 1. Verificar contraseña actual
+        const { error: authError } = await supabase.auth.signInWithPassword({
+            email: user.email,
+            password: currentPassword
+        });
+
+        if (authError) throw new Error('La contraseña actual es incorrecta');
+
+        // 2. Verificar/Crear registro en tabla Usuarios
+        const { data: existingUser, error: fetchError } = await supabase
+            .from('Usuarios')
+            .select('id_usuario')
+            .eq('id_usuario', user.id)
+            .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+        if (!existingUser) {
+            const { error } = await supabase
+                .from('Usuarios')
+                .insert([{ id_usuario: user.id, nombre: newName }]);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase
+                .from('Usuarios')
+                .update({ nombre: newName })
+                .eq('id_usuario', user.id);
+            if (error) throw error;
+        }
+
+        // 3. Actualizar Email (si cambió)
+        if (newEmail && newEmail !== user.email) {
+            const { error } = await supabase.auth.updateUser({ email: newEmail });
+            if (error) throw error;
+        }
+
+        // 4. Actualizar Password (si cambió)
+        if (newPassword || repeatPassword) {
+            if (newPassword.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
+            if (newPassword !== repeatPassword) throw new Error('Las contraseñas no coinciden');
+
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+        }
+
+        // --- ÉXITO CON TOAST ---
+        showToast('Perfil actualizado correctamente', 'success');
+
+        // Limpiar campos de contraseña
+        document.getElementById('newPassword').value = '';
+        document.getElementById('repeatPassword').value = '';
+        document.getElementById('currentPassword').value = '';
+
+    } catch (err) {
+        console.error(err);
+        // --- ERROR CON TOAST ---
+        showToast(err.message || 'Error al actualizar perfil', 'error');
+    }
 });
