@@ -632,16 +632,20 @@ document.getElementById('btnDownloadPDF').addEventListener('click', generatePDFR
     }
 
 // -------------------- MODO NOCTURNO (POTENCIAR CÁMARA) --------------------
-// --- MODO NOCTURNO ---
 document.getElementById('nightModeToggle').addEventListener('change', (e) => {
     const isEnabled = e.target.checked;
 
-    // Solo activamos la lógica interna de filtros
+    // 1. Activar lógica interna (Para que la IA detecte mejor)
     toggleNightMode(isEnabled);
 
+    // 2. Activar efecto visual (Para que TÚ veas la diferencia)
+    const videoEl = document.querySelector('.input_video');
+    
     if (isEnabled) {
-        showToast("Filtro de Cámara Activado", "info");
+        videoEl.classList.add('night-vision-effect');
+        showToast("Modo Nocturno Activado: +Brillo +Contraste", "info");
     } else {
-        showToast("Filtro de Cámara Desactivado", "info");
+        videoEl.classList.remove('night-vision-effect');
+        showToast("Modo Nocturno Desactivado", "info");
     }
 });
