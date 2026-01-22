@@ -11,6 +11,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<!-- Librerías jsPDF para exportar historial -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
 <!-- PWA Manifest y Iconos -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -134,7 +138,29 @@
 
 
        <section id="historial" class="card" style="display:none;">
-            <h2>Historial de Alertas</h2>
+            <h2>Historial y Reportes</h2>
+
+            <div class="report-panel">
+                <h3>📄 Generar Informe Detallado</h3>
+                <div class="report-controls">
+                    <div class="date-group">
+                        <label>Desde:</label>
+                        <input type="date" id="reportStartDate">
+                    </div>
+                    <div class="date-group">
+                        <label>Hasta:</label>
+                        <input type="date" id="reportEndDate">
+                    </div>
+                    <button id="btnDownloadPDF" class="primary-button pdf-btn">
+                        📥 Descargar PDF Oficial
+                    </button>
+                </div>
+                <p class="report-note">Este informe incluye evidencia técnica, gráficos de EAR/MAR y bitácora de alertas para fines corporativos o médicos.</p>
+            </div>
+            
+            <hr class="divider">
+
+            <h3>Bitácora de Alertas en Pantalla</h3>
 
             <div class="history-filters">
                 <div class="filter-wrapper">

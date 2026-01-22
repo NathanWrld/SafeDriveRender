@@ -20,7 +20,7 @@
   --hover-color: #334155;
   --chart-legend-text: #cbd5e1;
   
-  /* Colores fijos de alertas (no cambian con el tema) */
+  /* Colores fijos de alertas */
   --color-normal: #38bdf8;
   --color-leve: #22c55e;
   --color-moderado: #facc15;
@@ -80,11 +80,9 @@ h2 {margin-bottom: 20px;}
   padding-top: 20px;
   box-shadow: 2px 0 15px rgba(0,0,0,0.1);
   transition: 0.35s ease;
-  z-index: 2000; /* Asegura que esté encima */
-  
-  /* --- NUEVO PARA MÓVIL --- */
-  overflow-y: auto; /* Permite bajar si la pantalla es pequeña */
-  -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
+  z-index: 2000;
+  overflow-y: auto; 
+  -webkit-overflow-scrolling: touch; 
 }
 
 .sidebar h2 {
@@ -111,13 +109,11 @@ h2 {margin-bottom: 20px;}
   color: #fff;
 }
 
-/* Botón cerrar sesión y footer */
 .sidebar-footer {
   margin-top: 20px;
     width: 100%;
 }
 
-/* Botón de tema */
 .theme-btn {
     background: transparent;
     border: 1px solid var(--border-color);
@@ -178,7 +174,7 @@ h2 {margin-bottom: 20px;}
 }
 
 /* ==========================================================================
-   BOTÓN HAMBURGUESA
+   BOTÓN HAMBURGUESA Y OVERLAY
    ========================================================================== */
 .burger {
   display: none;
@@ -196,9 +192,6 @@ h2 {margin-bottom: 20px;}
   background: var(--border-color);
 }
 
-/* ==========================================================================
-   OVERLAY OSCURO
-   ========================================================================== */
 .overlay {
   display: none;
   position: fixed;
@@ -218,9 +211,6 @@ h2 {margin-bottom: 20px;}
   opacity: 1;
 }
 
-/* ==========================================================================
-   RESPONSIVE – SIDEBAR MOBILE
-   ========================================================================== */
 @media (max-width: 1024px) {
   .top-header { display: flex; }
   .sidebar { transform: translateX(-260px); width: 240px; }
@@ -229,9 +219,6 @@ h2 {margin-bottom: 20px;}
   .main { padding: 40px 0px 0px !important; }
 }
 
-/* ==========================================================================
-   BOTÓN X PARA CERRAR SLIDE
-   ========================================================================== */
 .close-sidebar {
   display: none;
   position: fixed;
@@ -254,7 +241,7 @@ h2 {margin-bottom: 20px;}
 }
 
 /* ==========================================================================
-   CARDS
+   CARDS GENERALES
    ========================================================================== */
 .card {
   background: var(--bg-card);
@@ -270,6 +257,56 @@ h2 {margin-bottom: 20px;}
 }
 
 /* ==========================================================================
+   TARJETA MÉDICA (NUEVO)
+   ========================================================================== */
+.medical-card {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.10) 0%, var(--bg-card) 100%);
+    border: 1px solid #ef4444;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.med-icon {
+    font-size: 30px;
+    background: rgba(239, 68, 68, 0.15);
+    width: 50px; height: 50px;
+    display: flex; justify-content: center; align-items: center;
+    border-radius: 50%; flex-shrink: 0;
+}
+
+.med-content h3 { margin: 0 0 5px 0; color: #ef4444; font-size: 18px; }
+.med-content p { margin: 0 0 15px 0; color: var(--text-main); font-size: 15px; line-height: 1.4; }
+
+.med-feedback {
+    background: var(--bg-input);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.med-feedback span { display: block; margin-bottom: 10px; font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+.med-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.med-btn {
+    padding: 8px 16px; border-radius: 6px; border: none;
+    cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
+}
+.med-btn.confirm { background: #10b981; color: white; }
+.med-btn.confirm:hover { background: #059669; }
+.med-btn.deny { background: transparent; border: 1px solid var(--text-secondary); color: var(--text-secondary); }
+.med-btn.deny:hover { border-color: var(--text-main); color: var(--text-main); }
+
+@media (max-width: 768px) {
+    .medical-card { flex-direction: column; align-items: center; text-align: center; }
+    .med-buttons { justify-content: center; }
+}
+
+/* ==========================================================================
    CÁMARA
    ========================================================================== */
 .cam-container {
@@ -277,7 +314,6 @@ h2 {margin-bottom: 20px;}
   justify-content: center;
 }
 
-/* Solo afecta a la cámara y su canvas de salida */
 video, canvas.output_canvas {
   border-radius: 12px;
   width: 50%;
@@ -309,7 +345,7 @@ video, canvas.output_canvas {
 }
 
 /* ==========================================================================
-   GRÁFICAS – CHART Y LEYENDA EXTERNA
+   GRÁFICAS
    ========================================================================== */
 .chart-container {
   position: relative;
@@ -324,7 +360,6 @@ video, canvas.output_canvas {
   border: 1px solid var(--border-color);
 }
 
-/* Leyenda HTML Externa */
 .chart-legend-html {
     display: flex;
     flex-wrap: wrap;
@@ -366,15 +401,13 @@ video, canvas.output_canvas {
     border-radius: 50%;
 }
 
-/* --- NUEVO: Estilo para la guía debajo de la gráfica --- */
 #chartLegendInfo {
     margin-top: 10px;
     font-size: 0.9em;
-    color: var(--text-secondary); /* Usa la variable de tema */
+    color: var(--text-secondary);
     transition: color 0.3s;
 }
 
-/* Contenedor del Canvas */
 .chart-scroll-wrapper {
   position: relative;
   width: 100%;
@@ -382,7 +415,6 @@ video, canvas.output_canvas {
   overflow-x: hidden;
 }
 
-/* --- REGLAS PC: Asegura que en escritorio ocupe el 100% --- */
 .chart-body {
   width: 100%;
   height: 100%;
@@ -392,18 +424,16 @@ video, canvas.output_canvas {
 .chart-body canvas {
   width: 100% !important;
   height: 100% !important;
-  border: none !important; /* Quita bordes heredados */
+  border: none !important; 
   border-radius: 0 !important;
 }
 
-/* --- REGLAS MÓVIL: Aplica el scroll y ancho forzado --- */
 @media (max-width: 768px) {
   .chart-container {
     padding: 0; 
     border: none;
     box-shadow: none;
   }
-
   .chart-scroll-wrapper {
     width: 100%;
     overflow-x: auto; 
@@ -411,14 +441,11 @@ video, canvas.output_canvas {
     padding-bottom: 5px;
     background: linear-gradient(to right, var(--bg-card) 30%, rgba(0,0,0,0) 0%);
   }
-
-  /* CAJA INTERNA (Fix táctil y ancho mínimo) */
   .chart-body {
-    height: 350px;       /* Altura fija */
-    min-width: 700px;    /* Ancho forzado para scroll horizontal */
+    height: 350px;      
+    min-width: 700px;   
     position: relative; 
   }
-  
   .chart-legend-html { gap: 5px; margin-bottom: 10px; }
   .legend-item { padding: 4px 10px; font-size: 11px; }
 }
@@ -457,11 +484,6 @@ video, canvas.output_canvas {
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.2);
   border: 1px solid var(--border-color);
-}
-
-#usuarios h2 {
-  text-align: center;
-  margin-bottom: 10px;
 }
 
 .form-group {
@@ -510,11 +532,6 @@ video, canvas.output_canvas {
   font-size: 16px;
 }
 
-@media (max-width: 768px) {
-  #usuarios form { padding: 20px; gap: 15px; }
-  .form-group input { font-size: 14px; padding: 10px; }
-}
-
 /* ==========================================================================
    HISTORIAL Y TABLAS
    ========================================================================== */
@@ -526,7 +543,6 @@ video, canvas.output_canvas {
   flex-wrap: wrap;
 }
 
-/* Inputs de filtros */
 .filter-item input, .filter-item select {
     background: var(--bg-input);
     color: var(--text-main);
@@ -585,11 +601,6 @@ video, canvas.output_canvas {
 .history-table td.level-moderado { color: var(--color-moderado); font-weight: 600; }
 .history-table td.level-alto { color: var(--color-alto); font-weight: 600; }
 
-@media (max-width: 768px) {
-  .history-table td, .history-table th { font-size: 13px; padding: 10px; }
-}
-
-/* Paginación */
 .pagination {
   display: flex;
   justify-content: center;
@@ -613,7 +624,47 @@ video, canvas.output_canvas {
 .page-btn svg { width: 24px; height: 24px; }
 
 /* ==========================================================================
-   POP-UP PREVENTIVO
+   PANEL DE REPORTES PDF (NUEVO)
+   ========================================================================== */
+.report-panel {
+    background: var(--bg-input);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 30px;
+}
+
+.report-panel h3 { margin-top: 0; font-size: 16px; color: var(--text-highlight); }
+
+.report-controls {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.date-group { display: flex; flex-direction: column; gap: 5px; }
+.date-group label { font-size: 12px; color: var(--text-secondary); font-weight: bold; }
+.date-group input { 
+    padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);
+    background: var(--bg-card); color: var(--text-main);
+}
+
+.pdf-btn {
+    background-color: #ef4444; 
+    display: flex; align-items: center; gap: 8px;
+}
+.pdf-btn:hover { background-color: #dc2626; outline-color: #ef4444; }
+
+.report-note {
+    margin-top: 10px; font-size: 12px; color: var(--text-secondary); font-style: italic;
+}
+
+.divider { border: 0; border-top: 1px solid var(--border-color); margin: 30px 0; }
+
+/* ==========================================================================
+   POP-UP PREVENTIVO (ALERTAS TIEMPO REAL)
    ========================================================================== */
 .warning-popup {
     position: fixed;
@@ -649,57 +700,7 @@ video, canvas.output_canvas {
 }
 
 /* ==========================================================================
-   TARJETA MÉDICA (DASHBOARD)
-   ========================================================================== */
-.medical-card {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.10) 0%, var(--bg-card) 100%);
-    border: 1px solid #ef4444;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 25px;
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-    animation: fadeIn 0.5s ease-in;
-}
-
-.med-icon {
-    font-size: 30px;
-    background: rgba(239, 68, 68, 0.15);
-    width: 50px; height: 50px;
-    display: flex; justify-content: center; align-items: center;
-    border-radius: 50%; flex-shrink: 0;
-}
-
-.med-content h3 { margin: 0 0 5px 0; color: #ef4444; font-size: 18px; }
-.med-content p { margin: 0 0 15px 0; color: var(--text-main); font-size: 15px; line-height: 1.4; }
-
-.med-feedback {
-    background: var(--bg-input);
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-}
-
-.med-feedback span { display: block; margin-bottom: 10px; font-weight: 600; color: var(--text-secondary); font-size: 13px; }
-.med-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
-
-.med-btn {
-    padding: 8px 16px; border-radius: 6px; border: none;
-    cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
-}
-.med-btn.confirm { background: #10b981; color: white; }
-.med-btn.confirm:hover { background: #059669; }
-.med-btn.deny { background: transparent; border: 1px solid var(--text-secondary); color: var(--text-secondary); }
-.med-btn.deny:hover { border-color: var(--text-main); color: var(--text-main); }
-
-@media (max-width: 768px) {
-    .medical-card { flex-direction: column; align-items: center; text-align: center; }
-    .med-buttons { justify-content: center; }
-}
-
-/* ==========================================================================
-   MODAL POST-VIAJE
+   MODAL DE RECOMENDACIONES (POST-SESIÓN) (NUEVO)
    ========================================================================== */
 .modal-overlay {
     display: none; position: fixed; top: 0; left: 0;
@@ -731,17 +732,17 @@ video, canvas.output_canvas {
 
 .modal-footer { padding: 15px 20px; text-align: center; display: flex; justify-content: center; }
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ==========================================================================
-   TOAST NOTIFICATIONS (Reemplazo de Alert)
+   TOAST NOTIFICATIONS (NUEVO)
    ========================================================================== */
 .toast-container {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 4000; /* Encima de todo */
+    z-index: 4000;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -752,28 +753,21 @@ video, canvas.output_canvas {
     color: var(--text-main);
     padding: 12px 20px;
     border-radius: 8px;
-    border-left: 5px solid; /* Color dinámico */
+    border-left: 5px solid;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     min-width: 250px;
     font-size: 14px;
     display: flex;
     align-items: center;
     gap: 10px;
-    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; /* Entra y se va solo */
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
 }
 
-/* Tipos de Toast */
 .toast.success { border-left-color: #10b981; }
 .toast.error { border-left-color: #ef4444; }
 .toast.info { border-left-color: #3b82f6; }
 
 .toast-icon { font-size: 18px; }
 
-@keyframes toastIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes toastOut {
-    to { transform: translateX(100%); opacity: 0; }
-}
+@keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes toastOut { to { transform: translateX(100%); opacity: 0; } }
