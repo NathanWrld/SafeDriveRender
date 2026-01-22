@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// CORRECCIÓN: Reseteo de estado al reiniciar la cámara
+// CORRECCIÓN: Cálculo de tiempo real (Date.now) para eliminar lag en alertas
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -14,7 +14,7 @@ const alarmAudio = document.getElementById('alarmSound');
 const notifyAudio = document.getElementById('notifySound');
 const warningPopup = document.getElementById('warningPopup');
 
-// --- VARIABLES DE CONTROL (Estado Global del Módulo) ---
+// --- VARIABLES DE CONTROL (Estado Global) ---
 let moderateAlertCooldown = false;
 let moderateWarningCount = 0; 
 let lastWarningTime = 0; 
@@ -39,6 +39,9 @@ let closedFrameCounter = 0;
 let reopenGraceCounter = 0;
 let prevSmoothedEAR = 0;
 
+// NUEVO: Variable para medir tiempo real
+let eyeClosedStartTime = 0;
+
 let dynamicEARBaseline = null;
 let dynamicMARBaseline = 0.65;
 
@@ -46,7 +49,7 @@ let lastModerateTimestamp = 0;
 let microsleepTriggered = false; 
 let yawnFrameCounter = 0;
 
-// --- FUNCIÓN DE RESETEO (NUEVO) ---
+// --- FUNCIÓN DE RESETEO ---
 function resetDetectionState() {
     console.log("🔄 Reseteando variables de detección...");
     blinkTimestamps = [];
@@ -58,13 +61,16 @@ function resetDetectionState() {
     mouthHistory = [];
     baselineSamples = [];
     baselineEMA = null;
-    initialCalibrationDone = false; // Forzar recalibración
+    initialCalibrationDone = false; 
 
     eyeState = 'open';
     mouthState = 'closed';
     closedFrameCounter = 0;
     reopenGraceCounter = 0;
     prevSmoothedEAR = 0;
+    
+    // Resetear cronómetro de ojos
+    eyeClosedStartTime = 0;
 
     dynamicEARBaseline = null;
     dynamicMARBaseline = 0.65;
@@ -79,7 +85,6 @@ function resetDetectionState() {
 }
 
 export async function startDetection({ rol, videoElement, canvasElement, estado, cameraRef, sessionId, onRiskUpdate }) {
-    // 1. LIMPIEZA INICIAL: Borramos todo el "sucio" de la sesión anterior
     resetDetectionState();
 
     const canvasCtx = canvasElement.getContext('2d');
@@ -88,32 +93,30 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     videoElement.style.display = 'block';
     canvasElement.style.display = isDev ? 'block' : 'none';
 
-    // --- ACTIVAR WAKE LOCK (MANTENER PANTALLA ENCENDIDA) ---
+    // --- WAKE LOCK ---
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
             console.log('💡 Pantalla mantenida encendida (Wake Lock activo)');
-        } else {
-            console.warn('⚠️ Wake Lock no soportado en este navegador.');
         }
     } catch (err) {
-        console.error(`Error activando Wake Lock: ${err.name}, ${err.message}`);
+        console.error(`Error Wake Lock: ${err.message}`);
     }
 
     // ===============================
-    // PARÁMETROS CONSTANTES
+    // PARÁMETROS
     // ===============================
     const SMOOTHING_WINDOW = 5;
     const BASELINE_FRAMES_INIT = 60;
     const EMA_ALPHA = 0.03;
     const BASELINE_MULTIPLIER = 0.60; 
-    const CLOSED_FRAMES_THRESHOLD = 1;
+    const CLOSED_FRAMES_THRESHOLD = 1; // Filtro mínimo de cuadros
     const DERIVATIVE_THRESHOLD = -0.0025;
     
-    const MICROSUEÑO_THRESHOLD = 2.0; 
+    const MICROSUEÑO_THRESHOLD = 2.0; // Segundos reales
     const MIN_SLOW_BLINK_DURATION = 0.5; 
     
-    const FPS = 30;
+    const FPS = 30; // Solo referencial ahora
     const MIN_YAWN_DURATION = 0.8; 
     const EYE_REOPEN_GRACE_FRAMES = 3;
 
@@ -190,7 +193,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
         // --- CALIBRACIÓN ---
         if (!initialCalibrationDone) {
-            estado.innerHTML = `<p>🔄 Calibrando... (${baselineSamples.length}/${BASELINE_FRAMES_INIT})</p>`; // Feedback visual
+            estado.innerHTML = `<p>🔄 Calibrando... (${baselineSamples.length}/${BASELINE_FRAMES_INIT})</p>`;
             if (earRel > 0) baselineSamples.push(earRel);
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
                 baselineEMA = median(baselineSamples) || 0.01;
@@ -226,9 +229,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
         const EAR_THRESHOLD = dynamicEARBaseline * BASELINE_MULTIPLIER;
 
-        // =========================================================================
-        // ANÁLISIS 60s (VARIABLES DEFINIDAS AQUÍ PARA EVITAR CRASH)
-        // =========================================================================
+        // --- BUFFER LIMPIEZA ---
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
         slowBlinksBuffer = slowBlinksBuffer.filter(ts => ts > now - 60000); 
@@ -239,15 +240,21 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         const recentYawns = yawnsBuffer.length;
 
         // =========================================================================
-        // LÓGICA PRINCIPAL DE OJOS
+        // LÓGICA PRINCIPAL DE OJOS (CON TIEMPO REAL)
         // =========================================================================
         const consideredClosed = smoothedEAR < EAR_THRESHOLD || derivative < DERIVATIVE_THRESHOLD;
 
         if (consideredClosed) {
             if (isYawningNow) {
+                // Si bosteza, ignoramos cierre de ojos
                 closedFrameCounter = 0; 
+                eyeClosedStartTime = 0; // Resetear cronómetro
                 reopenGraceCounter = 0;
             } else {
+                // INICIAR CRONÓMETRO SI NO ESTÁ INICIADO
+                if (eyeClosedStartTime === 0) {
+                    eyeClosedStartTime = Date.now();
+                }
                 closedFrameCounter++;
             }
             reopenGraceCounter = 0;
@@ -261,8 +268,13 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             if (reopenGraceCounter >= EYE_REOPEN_GRACE_FRAMES) {
                 if (eyeState === 'closed') {
                     // --- EVENTO: LOS OJOS SE ACABAN DE ABRIR ---
-                    const totalClosedDuration = closedFrameCounter / FPS;
                     
+                    // Cálculo de duración precisa (Fin - Inicio)
+                    let totalClosedDuration = 0;
+                    if (eyeClosedStartTime > 0) {
+                        totalClosedDuration = (Date.now() - eyeClosedStartTime) / 1000;
+                    }
+
                     if (microsleepTriggered) {
                         console.log(`🚨 Microsueño finalizado. Total: ${totalClosedDuration.toFixed(2)}s`);
                         sendDetectionEvent({
@@ -284,7 +296,10 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
                     blinkTimestamps.push(Date.now());
                     eyeState = 'open';
                 }
+                
+                // Resetear contadores
                 closedFrameCounter = 0;
+                eyeClosedStartTime = 0;
             }
         }
 
@@ -306,11 +321,16 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
         // --- GESTIÓN DE RIESGO ---
         let riskLevel = 'Normal';
-        const closureDuration = closedFrameCounter / FPS; 
         const popupContent = document.getElementById('popupTextContent');
 
+        // CÁLCULO DE DURACIÓN ACTUAL EN TIEMPO REAL
+        let currentClosureDuration = 0;
+        if (eyeClosedStartTime > 0) {
+            currentClosureDuration = (Date.now() - eyeClosedStartTime) / 1000;
+        }
+
         // A. ALTO RIESGO
-        if (closureDuration >= MICROSUEÑO_THRESHOLD) {
+        if (currentClosureDuration >= MICROSUEÑO_THRESHOLD) {
             riskLevel = 'Alto riesgo';
             warningPopup.className = "warning-popup alert-red active";
             if (popupContent) popupContent.innerHTML = `<h3>🚨 ¡PELIGRO! 🚨</h3><p>Mantenga los ojos abiertos.</p>`;
@@ -322,7 +342,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
             if (!microsleepTriggered) {
                 microsleepTriggered = true;
-                console.log("⚠️ Alerta activada (esperando cierre para guardar)");
+                console.log("⚠️ Alerta activada (2.0s alcanzados)");
             }
         } 
         
@@ -374,7 +394,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             lastModerateTimestamp = now;
         } 
 
-        // C. LEVE (Umbral de prueba: 20 parpadeos)
+        // C. LEVE
         else {
             if (totalBlinksLastMinute > 20) riskLevel = 'Leve'; 
             else riskLevel = 'Normal';
@@ -390,7 +410,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             }
         }
 
-        // --- ENVIAR ESTADO AL SCRIPT PRINCIPAL ---
+        // --- ENVIAR ESTADO ---
         if (onRiskUpdate && typeof onRiskUpdate === 'function') {
             onRiskUpdate(riskLevel);
         }
@@ -405,7 +425,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         }
 
         // =========================================================================
-        // ENVÍO PERIÓDICO (CAPTURA CADA MINUTO)
+        // ENVÍO PERIÓDICO (CAPTURA)
         // =========================================================================
         const currentMinute = Math.floor(now / 60000);
         if (currentMinute > lastCaptureMinute && sessionId) {
@@ -415,7 +435,6 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             if (riskLevel === 'Moderado') prob = 0.7;
             if (riskLevel === 'Alto riesgo') prob = 1.0;
 
-            // 1. Guardamos la captura (siempre)
             sendDetectionEvent({
                 type: 'CAPTURA',
                 sessionId,
@@ -428,7 +447,6 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
                 totalYawns: yawnCountTotal
             });
 
-            // 2. Si es 'Leve', también lo guardamos en ALERTAS
             if (riskLevel === 'Leve') {
                 sendDetectionEvent({
                     type: 'ALERTA',
@@ -443,7 +461,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             lastCaptureMinute = currentMinute;
         }
 
-        // Color condicional en el texto de estado
+        // FEEDBACK VISUAL
         let colorEstado = '#4ade80'; 
         if (riskLevel === 'Leve') colorEstado = '#facc15'; 
         if (riskLevel === 'Moderado') colorEstado = '#fbbf24'; 
@@ -474,7 +492,6 @@ export async function stopDetection(cameraRef) {
     if (alarmAudio) { alarmAudio.pause(); alarmAudio.currentTime = 0; }
     if (warningPopup) warningPopup.classList.remove('active');
 
-    // --- LIBERAR WAKE LOCK (PERMITIR QUE LA PANTALLA SE APAGUE) ---
     try {
         if (wakeLock !== null) {
             await wakeLock.release();
@@ -486,7 +503,7 @@ export async function stopDetection(cameraRef) {
     }
 }
 
-// --- FUNCIÓN DE ENVÍO DIRECTO A SUPABASE ---
+// --- FUNCIÓN DE ENVÍO DIRECTO ---
 async function sendDetectionEvent({ 
     type, 
     sessionId, 
@@ -550,7 +567,6 @@ async function sendDetectionEvent({
                 causa = "Somnolencia"; 
                 valor = parseFloat(slowBlinks); 
             }
-            // CAMBIO AQUI: Fatiga y valor = blinkRate
             else if (riskLevel === 'Leve') {
                 causa = "Fatiga"; 
                 valor = parseFloat(blinkRate); 
