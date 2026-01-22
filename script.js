@@ -557,11 +557,26 @@ document.getElementById('btnDownloadPDF').addEventListener('click', generatePDFR
         doc.setTextColor(...brightBlue);
         doc.text("Historial de Sesiones", 14, finalY);
 
-        const bodySesiones = sesiones.map(s => [
-            new Date(s.fecha_inicio).toLocaleDateString() + ' ' + new Date(s.fecha_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            s.duracion_min ? s.duracion_min + ' min' : 'En curso',
-            s.nivel_riesgo_final || 'Normal'
-        ]);
+        const bodySesiones = sesiones.map(s => {
+            let textoDuracion = 'En curso';
+
+            // 1. Verificamos si la sesión ya terminó (tiene fecha_fin)
+            if (s.fecha_fin) {
+                // Si la base de datos calculó 1 o más minutos
+                if (s.duracion_min && s.duracion_min > 0) {
+                    textoDuracion = s.duracion_min + ' min';
+                } else {
+                    // Si terminó pero la BD dice 0 (fueron segundos)
+                    textoDuracion = '< 1 min';
+                }
+            }
+
+            return [
+                new Date(s.fecha_inicio).toLocaleDateString() + ' ' + new Date(s.fecha_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                textoDuracion,
+                s.nivel_riesgo_final || 'Incompleta' // Si terminó pero no tiene riesgo, ponemos Incompleta
+            ];
+        });
 
         doc.autoTable({
             startY: finalY + 5,
