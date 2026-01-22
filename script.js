@@ -374,34 +374,30 @@ async function generatePDFReport() {
             return;
         }
 
-        showToast("Generando informe, por favor espera...", "info");
+        showToast("Generando informe oficial...", "info");
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // --- CORRECCIÓN DE FECHAS (FIX ZONA HORARIA) ---
-        // Forzamos el inicio al primer segundo y el fin al último segundo del día local
+        // --- 1. Rango de Fechas Exacto (Todo el día final) ---
         const startISO = new Date(startDate + 'T00:00:00').toISOString();
         const endISO = new Date(endDate + 'T23:59:59.999').toISOString();
 
-        console.log("📅 Generando reporte desde:", startISO, "hasta:", endISO);
-
-        // 1. Obtener Datos: Sesiones
+        // --- 2. Obtener Sesiones ---
         const { data: sesiones, error: sessError } = await supabase
             .from('sesiones_conduccion')
             .select('*')
             .eq('id_usuario', user.id)
-            .gte('fecha_inicio', startISO) // Usamos las fechas corregidas
+            .gte('fecha_inicio', startISO)
             .lte('fecha_inicio', endISO)
             .order('fecha_inicio', { ascending: true });
 
         if (sessError || !sesiones || sesiones.length === 0) {
-            showToast("No hay datos en el rango seleccionado", "error");
-            console.log("Error o vacío:", sessError);
+            showToast("No hay registros en esas fechas", "error");
             return;
         }
 
-        // 2. Obtener Alertas
+        // --- 3. Obtener Alertas y Recomendaciones ---
         const sessionIds = sesiones.map(s => s.id_sesion);
         const { data: alertas } = await supabase
             .from('Alertas')
@@ -409,7 +405,6 @@ async function generatePDFReport() {
             .in('id_sesion', sessionIds)
             .order('fecha_alerta', { ascending: true });
 
-        // 3. Obtener Recomendaciones
         const { data: recomendaciones } = await supabase
             .from('recomendaciones_medicas')
             .select('*')
@@ -417,117 +412,142 @@ async function generatePDFReport() {
             .gte('fecha_generacion', startISO)
             .lte('fecha_generacion', endISO);
 
-        // --- CÁLCULOS Y DIAGNÓSTICO ---
+        // --- 4. Cálculos Estadísticos ---
         let totalMinutos = 0;
         let sesionesAltoRiesgo = 0;
 
         sesiones.forEach(s => {
             if (s.duracion_min) totalMinutos += s.duracion_min;
-            
-            // CORRECCIÓN DE CONTEO: Limpiamos espacios y verificamos
-            const riesgo = s.nivel_riesgo_final ? s.nivel_riesgo_final.trim() : '';
-            console.log(`Evaluando sesión ${s.id_sesion}: Estado = "${riesgo}"`); // <--- MIRA ESTO EN CONSOLA
-
-            if (riesgo === 'Alto riesgo' || riesgo === 'Alto') {
-                sesionesAltoRiesgo++;
-            }
+            // Contamos como crítica si el estado final contiene "Alto"
+            const estado = s.nivel_riesgo_final || '';
+            if (estado.includes('Alto')) sesionesAltoRiesgo++;
         });
 
-        // --- CREACIÓN DEL PDF ---
+        // --- 5. Generación del PDF ---
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        const colorPrimary = [15, 23, 42]; 
-        const colorAccent = [59, 130, 246];
+        
+        // Colores
+        const darkBlue = [15, 23, 42]; 
+        const brightBlue = [59, 130, 246];
 
-        // Header
-        doc.setFillColor(...colorPrimary);
+        // --- HEADER ---
+        doc.setFillColor(...darkBlue);
         doc.rect(0, 0, 210, 40, 'F');
         
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(22);
-        doc.text("INFORME DE FATIGA", 105, 15, { align: "center" });
+        doc.text("INFORME DE ESTADO DEL CONDUCTOR", 105, 15, { align: "center" });
         
-        doc.setFontSize(10);
-        doc.text(`Generado: ${new Date().toLocaleString()}`, 105, 25, { align: "center" });
-        doc.text(`Rango: ${startDate} al ${endDate}`, 105, 32, { align: "center" });
+        doc.setFontSize(11);
+        doc.text(`Generado por VisioGuard | ${new Date().toLocaleDateString()}`, 105, 25, { align: "center" });
+        doc.text(`Rango Analizado: ${startDate} al ${endDate}`, 105, 32, { align: "center" });
 
-        // Resumen
+        // --- TABLA RESUMEN (Estilo Grilla) ---
         doc.setTextColor(0, 0, 0);
         doc.autoTable({
             startY: 50,
-            head: [['Métrica Clave', 'Valor']],
+            head: [['Métrica', 'Resultado']],
             body: [
-                ['Total de Sesiones Analizadas', sesiones.length],
-                ['Tiempo Total al Volante', `${totalMinutos} minutos`],
-                ['Sesiones Críticas (Alto Riesgo)', sesionesAltoRiesgo], // <--- AHORA DEBERÍA SALIR BIEN
-                ['Total de Alertas Registradas', alertas ? alertas.length : 0]
+                ['Total Sesiones Realizadas', sesiones.length],
+                ['Tiempo Total Monitoreado', `${totalMinutos} minutos`],
+                ['Sesiones Críticas (Alto Riesgo)', sesionesAltoRiesgo], // Cuenta viajes terminados en rojo
+                ['Total Eventos de Alerta', alertas ? alertas.length : 0]
             ],
             theme: 'grid',
-            headStyles: { fillColor: colorAccent, halign: 'center' },
-            columnStyles: { 1: { fontStyle: 'bold', halign: 'center' } }
+            headStyles: { fillColor: brightBlue, halign: 'center' },
+            columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'center' } }
         });
 
-        // Metodología
-        let finalY = doc.lastAutoTable.finalY + 10;
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        const metodoText = "NOTA TÉCNICA: 'Sesión Crítica' se define como un trayecto donde el sistema detectó microsueños (EAR < 0.20) o fatiga severa persistente que obligó a detener la medición en estado de Alto Riesgo.";
-        doc.text(metodoText, 14, finalY, { maxWidth: 180, align: 'justify' });
-
-        // Tabla Detallada
-        finalY += 15;
+        // --- BITÁCORA DE ALERTAS (Lo importante) ---
+        let finalY = doc.lastAutoTable.finalY + 15;
         doc.setFontSize(14);
-        doc.setTextColor(...colorAccent);
-        doc.text("Desglose de Sesiones", 14, finalY);
+        doc.setTextColor(...brightBlue);
+        doc.text("Bitácora Detallada de Eventos", 14, finalY);
+
+        if (alertas && alertas.length > 0) {
+            const bodyAlertas = alertas.map(a => {
+                // Lógica de Unidades para la columna Valor
+                let valorFormateado = '-';
+                if (a.valor_medido !== null) {
+                    const val = parseFloat(a.valor_medido).toFixed(1);
+                    if (a.causa_detonante.includes('Microsueño')) valorFormateado = `${val} seg`; // Tiempo ojos cerrados
+                    else if (a.causa_detonante.includes('Fatiga')) valorFormateado = `${val} parp/min`; // Frecuencia
+                    else if (a.causa_detonante.includes('Bostezos')) valorFormateado = `${val} detectados`; // Cantidad
+                    else if (a.causa_detonante.includes('Somnolencia')) valorFormateado = `${val} eventos`; // Cantidad parpadeos lentos
+                    else valorFormateado = val; 
+                }
+
+                return [
+                    new Date(a.fecha_alerta).toLocaleDateString() + ' ' + new Date(a.fecha_alerta).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    a.causa_detonante || 'General',
+                    a.nivel_riesgo,
+                    valorFormateado // <--- AQUI ESTÁ TU NUEVA COLUMNA CON UNIDADES
+                ];
+            });
+
+            doc.autoTable({
+                startY: finalY + 5,
+                head: [['Fecha / Hora', 'Evento', 'Gravedad', 'Medición']],
+                body: bodyAlertas,
+                theme: 'striped',
+                headStyles: { fillColor: [220, 38, 38] }, // Rojo Alerta
+                didParseCell: function(data) {
+                    // Colorear texto según gravedad
+                    if (data.section === 'body' && data.column.index === 2) {
+                        if (data.cell.raw === 'Alto riesgo') data.cell.styles.textColor = [220, 38, 38];
+                        else if (data.cell.raw === 'Moderado') data.cell.styles.textColor = [217, 119, 6];
+                    }
+                }
+            });
+        } else {
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text("No se registraron alertas en este periodo.", 14, finalY + 10);
+        }
+
+        // --- DETALLE DE SESIONES ---
+        // Si la tabla de alertas es muy larga, lastAutoTable se actualiza
+        finalY = doc.lastAutoTable.finalY + 15;
+        
+        // Verificar si necesitamos nueva página
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+
+        doc.setFontSize(14);
+        doc.setTextColor(...brightBlue);
+        doc.text("Historial de Sesiones", 14, finalY);
 
         const bodySesiones = sesiones.map(s => [
             new Date(s.fecha_inicio).toLocaleDateString() + ' ' + new Date(s.fecha_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            s.duracion_min ? s.duracion_min + ' min' : 'Running',
-            s.nivel_riesgo_final || 'Incompleta'
+            s.duracion_min ? s.duracion_min + ' min' : 'En curso',
+            s.nivel_riesgo_final || 'Normal'
         ]);
 
         doc.autoTable({
             startY: finalY + 5,
-            head: [['Fecha / Hora', 'Duración', 'Estado Final']],
+            head: [['Inicio', 'Duración', 'Estado Final']],
             body: bodySesiones,
             theme: 'striped',
-            headStyles: { fillColor: [71, 85, 105] },
+            headStyles: { fillColor: [71, 85, 105] }, // Gris Oscuro
             didParseCell: function(data) {
                 if (data.section === 'body' && data.column.index === 2) {
-                    const val = data.cell.raw;
-                    if (val === 'Alto riesgo' || val === 'Alto') {
-                        data.cell.styles.textColor = [220, 38, 38]; // Rojo
+                    if (data.cell.raw && data.cell.raw.includes('Alto')) {
+                        data.cell.styles.textColor = [220, 38, 38];
                         data.cell.styles.fontStyle = 'bold';
-                    } else if (val === 'Moderado') {
-                        data.cell.styles.textColor = [234, 179, 8]; // Amarillo oscuro
                     }
                 }
             }
         });
 
-        // Alertas (si hay)
-        if (alertas && alertas.length > 0) {
-            doc.addPage();
-            doc.setFontSize(14);
-            doc.setTextColor(...colorAccent);
-            doc.text("Bitácora de Eventos (Alertas)", 14, 20);
-            
-            const bodyAlertas = alertas.map(a => [
-                new Date(a.fecha_alerta).toLocaleTimeString(),
-                a.causa_detonante || 'General',
-                a.nivel_riesgo,
-                a.valor_medido ? a.valor_medido.toString() : '-'
-            ]);
-
-            doc.autoTable({
-                startY: 25,
-                head: [['Hora', 'Evento', 'Gravedad', 'Valor']],
-                body: bodyAlertas,
-                theme: 'grid',
-                headStyles: { fillColor: [239, 68, 68] }
-            });
+        // --- FOOTER ---
+        const pageCount = doc.internal.getNumberOfPages();
+        for(let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text(`Página ${i} de ${pageCount} - Reporte VisioGuard`, 105, 290, { align: "center" });
         }
 
-        doc.save(`Informe_VisioGuard_${startDate}_${endDate}.pdf`);
-        showToast("Informe PDF descargado con éxito", "success");
+        doc.save(`VisioGuard_${startDate}_${endDate}.pdf`);
+        showToast("Informe descargado correctamente", "success");
     }
