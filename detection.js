@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// CARACTERÍSTICAS: Tiempo Real + Reseteo + Modo Nocturno (Filtros Digitales)
+// VERSIÓN FINAL: Tiempo Real + Reseteo + Modo Nocturno + Fixes de Window
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -175,8 +175,8 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
     const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402];
 
-    // Configuración MediaPipe
-    const faceMesh = new FaceMesh({
+    // Configuración MediaPipe (Usando window. para evitar errores)
+    const faceMesh = new window.FaceMesh({
         locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
 
@@ -463,12 +463,12 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             onRiskUpdate(riskLevel);
         }
 
-        // Dibujar malla facial en modo Dev
+        // Dibujar malla facial en modo Dev (CORREGIDO CON window.)
         if (isDev) {
-            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
-            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, window.FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
+            drawConnectors(canvasCtx, lm, window.FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, window.FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, window.FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
             canvasCtx.restore();
         }
 
@@ -526,8 +526,8 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         `;
     });
 
-    // --- INICIALIZACIÓN DE LA CÁMARA ---
-    cameraRef.current = new Camera(videoElement, {
+    // --- INICIALIZACIÓN DE LA CÁMARA (Con Window y Lógica Nocturna) ---
+    cameraRef.current = new window.Camera(videoElement, {
         onFrame: async () => {
             // LOGICA CRÍTICA DE MODO NOCTURNO
             if (isNightMode) {
