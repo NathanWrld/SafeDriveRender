@@ -1,6 +1,6 @@
 // detection.js
 // SISTEMA DE DETECCIÓN: ARQUITECTURA SERVERLESS (JS -> SUPABASE)
-// VERSIÓN: Alta Sensibilidad en Bostezos + Fix Window + Modo Nocturno
+// VERSIÓN: Sin prefijos 'window' (Estabilidad) + Alta Sensibilidad Bostezos
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -46,12 +46,12 @@ let prevSmoothedEAR = 0;
 let eyeClosedStartTime = 0;
 
 let dynamicEARBaseline = null;
-let dynamicMARBaseline = 0.2; // Empezamos bajo para calibrar rápido
+let dynamicMARBaseline = 0.2; // Empezamos bajo
 
 let lastModerateTimestamp = 0;
 let microsleepTriggered = false; 
 let yawnFrameCounter = 0;
-let lastYawnTimestamp = 0; // Cooldown para no detectar el mismo bostezo 2 veces
+let lastYawnTimestamp = 0; // Cooldown bostezos
 
 // --- EXPORTAR MODO NOCTURNO ---
 export function toggleNightMode(active) {
@@ -60,7 +60,7 @@ export function toggleNightMode(active) {
 }
 
 function resetDetectionState() {
-    console.log("🔄 Reiniciando lógica de detección...");
+    console.log("🔄 Reiniciando detección...");
     blinkTimestamps = []; slowBlinksBuffer = []; yawnsBuffer = []; yawnCountTotal = 0; 
     earHistory = []; mouthHistory = []; baselineSamples = []; baselineEMA = null;
     initialCalibrationDone = false; 
@@ -89,7 +89,7 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     } catch (err) { console.error(err); }
 
     // =========================================================
-    // PARÁMETROS AJUSTADOS PARA SENSIBILIDAD
+    // PARÁMETROS DE ALTA SENSIBILIDAD
     // =========================================================
     const SMOOTHING_WINDOW = 3; 
     const BASELINE_FRAMES_INIT = 45; 
@@ -98,14 +98,12 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
     const CLOSED_FRAMES_THRESHOLD = 1; 
     const DERIVATIVE_THRESHOLD = -0.0025;
     
-    // UMBRALES DE BOSTEZO (AQUÍ ESTÁ LA MEJORA)
-    // Bajamos el umbral mínimo de apertura. Antes era 0.50, ahora 0.35.
-    // Esto significa que con abrir la boca "un poco más de lo normal" ya detecta.
+    // --- UMBRALES DE BOSTEZO (CRÍTICO) ---
+    // Bajamos el umbral mínimo a 0.35 para detectar bostezos sutiles
     const MIN_YAWN_MAR = 0.35; 
-    const YAWN_DURATION_THRESHOLD = 0.8; // Segundos (No lo subimos mucho para no perder bostezos cortos)
-    const YAWN_COOLDOWN_MS = 3000; // 3 segundos de espera entre bostezos
+    const YAWN_DURATION_THRESHOLD = 0.8; // Tiempo mínimo con boca abierta
+    const YAWN_COOLDOWN_MS = 3000; // 3 seg entre bostezos
 
-    // Tiempos Ojos
     const MICROSUEÑO_THRESHOLD = 2.0; 
     const MIN_SLOW_BLINK_DURATION = 0.5; 
     const FPS = 30; 
@@ -125,20 +123,19 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         const v1 = dist(p1, p5); const v2 = dist(p2, p4); const h = dist(p0, p3);
         return h === 0 ? 0 : (v1 + v2) / (2 * h);
     }
-    // MAR: Mouth Aspect Ratio (Vertical / Horizontal)
     function calculateMAR_px(landmarks, indices) {
         const p = indices.map(i => toPixel(landmarks[i]));
         const h = dist(p[0], p[1]); 
-        // Promedio de 3 distancias verticales de la boca
         const v = (dist(p[2], p[3]) + dist(p[4], p[5]) + dist(p[6], p[7])) / 3;
         return h === 0 ? 0 : v / h;
     }
 
     const RIGHT_EYE_IDX = [33, 160, 158, 133, 153, 144];
     const LEFT_EYE_IDX = [362, 385, 387, 263, 373, 380];
-    const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402]; // Labios interiores
+    const MOUTH_IDX = [61, 291, 13, 14, 81, 178, 311, 402];
 
-    const faceMesh = new window.FaceMesh({
+    // --- CORRECCIÓN: Quitamos 'window.' para restaurar funcionamiento ---
+    const faceMesh = new FaceMesh({
         locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
 
@@ -174,10 +171,8 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         const faceWidthPx = Math.max(...xs) - Math.min(...xs);
         const earRel = faceWidthPx > 0 ? earPx / faceWidthPx : earPx;
 
-        // CALIBRACIÓN
         if (!initialCalibrationDone) {
-            const progress = Math.round((baselineSamples.length / BASELINE_FRAMES_INIT) * 100);
-            estado.innerHTML = `<p>🔄 Calibrando... ${progress}%</p>`;
+            estado.innerHTML = `<p>🔄 Calibrando... ${Math.round((baselineSamples.length/BASELINE_FRAMES_INIT)*100)}%</p>`;
             if (earRel > 0) baselineSamples.push(earRel);
             if (baselineSamples.length >= BASELINE_FRAMES_INIT) {
                 baselineEMA = median(baselineSamples);
@@ -196,41 +191,39 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         const smoothedMAR = movingAverage(mouthHistory);
 
         // =====================================================================
-        // 1. LÓGICA DE BOSTEZOS (MEJORADA - ALTA SENSIBILIDAD)
+        // 1. LÓGICA DE BOSTEZOS MEJORADA (ALTA SENSIBILIDAD)
         // =====================================================================
-        // Definimos el umbral actual basado en la boca cerrada (dynamicMAR)
-        // Usamos una lógica aditiva (+0.15) en vez de multiplicativa para ser más justos con bocas pequeñas
+        // Usamos una lógica aditiva (+0.15) para bocas pequeñas
         const personalYawnThreshold = dynamicMARBaseline + 0.15; 
-        
         // El umbral final es el MAYOR entre el personal y el mínimo absoluto (0.35)
         const FINAL_YAWN_THRESHOLD = Math.max(personalYawnThreshold, MIN_YAWN_MAR);
 
         let isYawningNow = false;
 
-        // Check Cooldown
+        // Si no estamos en cooldown...
         if (Date.now() - lastYawnTimestamp > YAWN_COOLDOWN_MS) {
+            // Si la apertura supera el umbral...
             if (smoothedMAR > FINAL_YAWN_THRESHOLD) {
-                isYawningNow = true; // Para pausar la lógica de ojos
+                isYawningNow = true;
                 yawnFrameCounter++;
                 
-                // Si la boca está abierta por suficiente tiempo...
+                // Si mantiene la boca abierta el tiempo suficiente...
                 if (yawnFrameCounter / FPS >= YAWN_DURATION_THRESHOLD && mouthState === 'closed') {
                     yawnsBuffer.push(Date.now());
                     yawnCountTotal++;
-                    mouthState = 'open'; // Bostezo registrado
-                    lastYawnTimestamp = Date.now(); // Activar cooldown
-                    console.log(`🥱 Bostezo detectado! (MAR: ${smoothedMAR.toFixed(2)})`);
+                    mouthState = 'open'; 
+                    lastYawnTimestamp = Date.now(); 
+                    console.log(`🥱 Bostezo detectado (MAR: ${smoothedMAR.toFixed(2)})`);
                 }
             } else {
-                // Resetear contador si cierra la boca un poco (histéresis de salida del 80%)
-                if (smoothedMAR < FINAL_YAWN_THRESHOLD * 0.8) {
+                if (smoothedMAR < FINAL_YAWN_THRESHOLD * 0.9) {
                     yawnFrameCounter = 0;
                     mouthState = 'closed';
                 }
             }
         }
 
-        // Adaptación de línea base (Solo si NO está bostezando)
+        // Adaptación Baseline (Solo si no bosteza)
         if (smoothedEAR > 0 && eyeState === 'open' && !isYawningNow && smoothedMAR < FINAL_YAWN_THRESHOLD) {
             dynamicEARBaseline = EMA_ALPHA * smoothedEAR + (1 - EMA_ALPHA) * dynamicEARBaseline;
         }
@@ -238,7 +231,6 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
             dynamicMARBaseline = EMA_ALPHA * smoothedMAR + (1 - EMA_ALPHA) * dynamicMARBaseline;
         }
 
-        // Buffer Limpieza
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(ts => ts > now - 60000);
         slowBlinksBuffer = slowBlinksBuffer.filter(ts => ts > now - 60000); 
@@ -250,16 +242,14 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         // =====================================================================
         // 2. LÓGICA DE OJOS
         // =====================================================================
-        const BLINK_CLOSE_THRESHOLD = 0.55; 
-        const BLINK_OPEN_THRESHOLD = 0.65;
         const EAR_THRESHOLD = dynamicEARBaseline * 0.60;
+        const OPEN_THRESHOLD = dynamicEARBaseline * 0.65;
 
         const isEyeClosed = (instantEAR < EAR_THRESHOLD) || (smoothedEAR < EAR_THRESHOLD);
-        const isEyeOpen = (instantEAR > dynamicEARBaseline * BLINK_OPEN_THRESHOLD);
+        const isEyeOpen = (instantEAR > OPEN_THRESHOLD);
 
         if (eyeState === 'open') {
             if (isEyeClosed) {
-                // Si está bostezando, ignoramos el cierre de ojos (los ojos lloran o se cierran al bostezar)
                 if (isYawningNow) {
                     closedFrameCounter = 0; eyeClosedStartTime = 0; reopenGraceCounter = 0;
                 } else {
@@ -333,10 +323,11 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
         if (onRiskUpdate) onRiskUpdate(riskLevel);
 
         if (isDev) {
-            drawConnectors(canvasCtx, lm, window.FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
-            drawConnectors(canvasCtx, lm, window.FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, window.FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
-            drawConnectors(canvasCtx, lm, window.FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
+            // --- CORRECCIÓN: Quitamos 'window.' en drawConnectors ---
+            drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, { color: '#00C853', lineWidth: 0.5 });
+            drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, { color: '#FF5722', lineWidth: 1 });
+            drawConnectors(canvasCtx, lm, FACEMESH_LIPS, { color: '#FF4081', lineWidth: 1 });
             canvasCtx.restore();
         }
 
@@ -350,18 +341,17 @@ export async function startDetection({ rol, videoElement, canvasElement, estado,
 
         let colorEstado = riskLevel === 'Leve' ? '#facc15' : riskLevel === 'Moderado' ? '#fbbf24' : riskLevel === 'Alto riesgo' ? '#ef4444' : '#4ade80'; 
         
-        // --- DEBUG VISUAL (ESTADO) ---
-        // Mostramos el valor actual de MAR y el Umbral para que veas por qué detecta (o no)
         estado.innerHTML = `
             <p style="font-size:14px">Parpadeos/min: ${totalBlinksLastMinute}</p>
             <p style="font-size:14px">P. Lentos: ${recentSlowBlinks} | Bostezos: ${recentYawns}</p>
-            <p style="font-size:12px; color:#aaa">Boca (MAR): ${smoothedMAR.toFixed(2)} / Meta: ${FINAL_YAWN_THRESHOLD.toFixed(2)}</p>
+            <p style="font-size:12px; color:#aaa">MAR: ${smoothedMAR.toFixed(2)} | Meta: ${FINAL_YAWN_THRESHOLD.toFixed(2)}</p>
             <p style="font-weight:bold; color:${colorEstado}">Estado: ${riskLevel}</p>
             ${isNightMode ? '<p style="font-size:12px; color:#60a5fa">🌙 Filtro Nocturno: ACTIVO</p>' : ''}
         `;
     });
 
-    cameraRef.current = new window.Camera(videoElement, {
+    // --- CORRECCIÓN: Quitamos 'window.' en Camera ---
+    cameraRef.current = new Camera(videoElement, {
         onFrame: async () => {
             if (isNightMode) {
                 processingCanvas.width = videoElement.videoWidth;
