@@ -393,13 +393,13 @@
         loginTab.classList.add('active'); // Reactivar tab de login
     };
 
-    // 3. Enviar correo a Supabase
+    // 3. Enviar correo a Supabase (CORREGIDO)
     recoveryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const email = document.getElementById('recoveryEmail').value.trim();
         const errorEl = document.getElementById('recoveryError');
-        errorEl.textContent = ''; // Limpiar errores previos
+        errorEl.textContent = ''; 
 
         if (!email) {
             errorEl.textContent = 'Por favor ingresa tu correo.';
@@ -407,15 +407,20 @@
         }
 
         try {
-            // Enviamos el correo de reset
-            // redirectTo: define a dónde va el usuario al hacer clic en el link del correo
+            // --- CORRECCIÓN AQUÍ ---
+            // Usamos 'new URL' para respetar la carpeta del repositorio en GitHub Pages
+            // Esto genera algo como: https://usuario.github.io/proyecto/home.html
+            const redirectUrl = new URL('home.html', window.location.href).href;
+
+            console.log("Enviando enlace de recuperación a:", redirectUrl); // Para depurar
+
             const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: window.location.origin + '/home.html', 
+                redirectTo: redirectUrl, 
             });
 
             if (error) throw error;
 
-            // Reutilizamos tu Modal de éxito para avisar
+            // Mostrar Modal de éxito
             const modal = document.getElementById('successModal');
             const modalTitle = modal.querySelector('h3');
             const modalText = modal.querySelector('p');
@@ -428,13 +433,11 @@
 
             closeModal.onclick = () => {
                 modal.classList.remove('active');
-                // Volver al login automáticamente
                 btnBackToLogin.click();
             };
 
         } catch (err) {
             console.error(err);
-            // Manejo básico de errores de tasa (demasiados intentos)
             if (err.message.includes('Too many requests')) {
                 errorEl.textContent = 'Demasiados intentos. Espera un momento.';
             } else {
