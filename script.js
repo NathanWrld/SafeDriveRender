@@ -371,7 +371,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
             // Si estábamos en modo recuperación, lo apagamos y restauramos la UI
             if (isRecoveryMode) {
                 isRecoveryMode = false;
-                document.getElementById('currentPassword').parentElement.style.display = 'block';
+                document.getElementById('currentPassword').parentElement.style.display = 'flex';
                 showToast('Tu cuenta ya es segura. Próximos cambios requerirán tu contraseña.', 'info');
             }
         } else {
