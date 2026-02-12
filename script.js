@@ -168,7 +168,7 @@ function showMedicalCard(recId, description) {
     const card = document.getElementById('medicalAlertCard');
     const text = document.getElementById('medText');
     
-    text.textContent = description + " Te sugerimos cariñosamente visitar a un especialista para descartar condiciones como astenia y asegurarnos de que estés al 100%.";
+    text.textContent = description + " Te sugerimos visitar a un especialista para descartar condiciones como astenia y asegurarnos de que estés al 100%.";
     card.style.display = 'flex';
 
     document.getElementById('btnMedYes').onclick = async () => {
