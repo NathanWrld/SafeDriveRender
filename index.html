@@ -251,6 +251,16 @@
     const supabaseKey = 'sb_publishable_RTN2PXvdWOQFfUySAaTa_g_LLe-T_NU'
     const supabase = createClient(supabaseUrl, supabaseKey)
 
+    // --- REFERENCIAS DOM (Variables Globales) ---
+    // Las declaramos todas aquí para no tener errores de duplicados
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const recoveryForm = document.getElementById('recoveryForm'); // Referencia del formulario de recuperación
+    const btnShowRecovery = document.getElementById('btnShowRecovery');
+    const btnBackToLogin = document.getElementById('btnBackToLogin');
+
     // --- FUNCIONES AUXILIARES ---
     function translateAuthError(message) {
         if (message.includes('Password should be at least 6 characters')) return 'La contraseña debe tener al menos 6 caracteres';
@@ -269,33 +279,29 @@
             console.error('Error obteniendo la sesión:', error.message);
             return;
         }
-
         if (session?.user) {
-            // Si el usuario ya está logueado, lo llevamos a home.html
             window.location.href = 'home.html';
         }
     }
+    checkSession();
 
-    checkSession(); // <-- se ejecuta al cargar la página
-
-    // --- TABS ---
-    const loginTab = document.getElementById('loginTab');
-    const registerTab = document.getElementById('registerTab');
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-
+    // --- TABS (LÓGICA CORREGIDA) ---
     loginTab.onclick = () => {
         loginTab.classList.add('active');
         registerTab.classList.remove('active');
+        
         loginForm.classList.add('active');
         registerForm.classList.remove('active');
+        recoveryForm.classList.remove('active'); // Ocultar recuperación si está activa
     };
 
     registerTab.onclick = () => {
         registerTab.classList.add('active');
         loginTab.classList.remove('active');
+        
         registerForm.classList.add('active');
         loginForm.classList.remove('active');
+        recoveryForm.classList.remove('active'); // Ocultar recuperación si está activa
     };
 
     // --- LOGIN ---
@@ -316,7 +322,6 @@
         if(error) {
             errorEl.textContent = translateAuthError(error.message);
         } else {
-            // Redirige al home.html después del login
             window.location.href = 'home.html';
         }
     });
@@ -338,24 +343,20 @@
         }
 
         try {
-            // 1️⃣ Registrar en Auth
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
             if (signUpError) throw signUpError;
 
             const authUid = signUpData.user.id;
 
-            // 2️⃣ Insertar en tabla Usuarios
             await supabase.from('Usuarios').insert([
                 { id_usuario: authUid, nombre: name }
             ]);
 
-            // 3️⃣ Limpiar campos
             document.getElementById('regName').value = '';
             document.getElementById('regEmail').value = '';
             document.getElementById('regPassword').value = '';
             document.getElementById('regPassword2').value = '';
 
-            // 4️⃣ Mostrar popup de éxito
             const modal = document.getElementById('successModal');
             const closeModal = document.getElementById('closeModal');
             modal.classList.add('active');
@@ -371,17 +372,13 @@
     });
 
     // --- RECUPERACIÓN DE CONTRASEÑA ---
-    const recoveryForm = document.getElementById('recoveryForm');
-    const btnShowRecovery = document.getElementById('btnShowRecovery');
-    const btnBackToLogin = document.getElementById('btnBackToLogin');
-
-    // 1. Mostrar formulario de recuperación
+    
+    // 1. Mostrar formulario (y ocultar los demás)
     btnShowRecovery.onclick = () => {
         loginForm.classList.remove('active');
         registerForm.classList.remove('active');
-        recoveryForm.classList.add('active'); // Mostrar form recuperación
+        recoveryForm.classList.add('active');
         
-        // Desactivar tabs visualmente
         loginTab.classList.remove('active');
         registerTab.classList.remove('active');
     };
@@ -390,10 +387,10 @@
     btnBackToLogin.onclick = () => {
         recoveryForm.classList.remove('active');
         loginForm.classList.add('active');
-        loginTab.classList.add('active'); // Reactivar tab de login
+        loginTab.classList.add('active');
     };
 
-    // 3. Enviar correo a Supabase (CORREGIDO)
+    // 3. Enviar correo (CORREGIDO CON REDIRECTO URL)
     recoveryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -407,12 +404,8 @@
         }
 
         try {
-            // --- CORRECCIÓN AQUÍ ---
-            // Usamos 'new URL' para respetar la carpeta del repositorio en GitHub Pages
-            // Esto genera algo como: https://usuario.github.io/proyecto/home.html
+            // Construimos la URL completa para GitHub Pages
             const redirectUrl = new URL('home.html', window.location.href).href;
-
-            console.log("Enviando enlace de recuperación a:", redirectUrl); // Para depurar
 
             const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: redirectUrl, 
@@ -420,14 +413,13 @@
 
             if (error) throw error;
 
-            // Mostrar Modal de éxito
             const modal = document.getElementById('successModal');
             const modalTitle = modal.querySelector('h3');
             const modalText = modal.querySelector('p');
             const closeModal = document.getElementById('closeModal');
 
             modalTitle.textContent = '📧 Correo enviado';
-            modalText.innerHTML = `Hemos enviado un enlace a <b>${email}</b>.<br>Revisa tu bandeja de entrada (y spam).`;
+            modalText.innerHTML = `Hemos enviado un enlace a <b>${email}</b>.<br>Revisa tu bandeja de entrada.`;
             
             modal.classList.add('active');
 
@@ -445,7 +437,6 @@
             }
         }
     });
-
 
 </script>
 
